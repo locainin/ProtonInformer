@@ -1,4 +1,4 @@
-name: Helper artifacts
+name: Release artifacts
 
 on:
   push:
@@ -63,18 +63,76 @@ jobs:
           name: proton-informer-helper-${{ matrix.target }}
           path: dist/
 
+  linux-package:
+    needs: windows-helpers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build Linux controller
+        env:
+          RUSTFLAGS: >-
+            --remap-path-prefix=${{ github.workspace }}=/src
+            --remap-path-prefix=/home/runner/.cargo/registry=/cargo/registry
+            --remap-path-prefix=/home/runner/.cargo/git=/cargo/git
+        run: cargo build --locked -p proton-informer --release
+      - name: Download helper artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: proton-informer-helper-*
+          path: helper-artifacts
+          merge-multiple: true
+      - name: Build release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${GITHUB_REF_NAME:-dev}"
+          package="proton-informer-${version}-linux-x86_64"
+
+          mkdir -p "dist/${package}/helpers"
+          cp target/release/proton-informer "dist/${package}/proton-informer"
+          cp helper-artifacts/* "dist/${package}/helpers/"
+
+          if [ -f README.md ]; then
+            cp README.md "dist/${package}/README.md"
+          fi
+
+          if [ -f LICENSE ]; then
+            cp LICENSE "dist/${package}/LICENSE"
+          fi
+
+          tar -C dist -czf "${package}.tar.gz" "${package}"
+          sha256sum "${package}.tar.gz" > "${package}.tar.gz.sha256"
+
+          mkdir -p upload
+          mv "${package}.tar.gz" "${package}.tar.gz.sha256" upload/
+      - name: Smoke test release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir smoke
+          tar -xzf upload/*.tar.gz -C smoke
+          archive_root="$(find smoke -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          test -n "$archive_root"
+          "$archive_root/proton-informer" --version
+          "$archive_root/proton-informer" --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proton-informer-linux-x86_64
+          path: upload/
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: windows-helpers
+    needs: linux-package
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: proton-informer-helper-*
+          name: proton-informer-linux-x86_64
           path: dist
-          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
