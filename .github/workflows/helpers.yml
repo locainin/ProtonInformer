@@ -23,13 +23,41 @@ jobs:
             output: proton-informer-win-helper.exe
     steps:
       - uses: actions/checkout@v6
-      - name: Install MinGW toolchains
+      - name: Install MinGW and Wine toolchains
         run: |
+          sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install --yes binutils-mingw-w64 gcc-mingw-w64
+          sudo apt-get install --yes \
+            binutils-mingw-w64 \
+            gcc-mingw-w64 \
+            wine \
+            wine32:i386 \
+            wine64
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - name: Test helper
+        shell: bash
+        env:
+          WINEDEBUG: "-all"
+          WINEPREFIX: ${{ runner.temp }}/wine-${{ matrix.target }}
+        run: |
+          set -euo pipefail
+
+          case "${{ matrix.target }}" in
+            i686-pc-windows-gnu)
+              export WINEARCH=win32
+              export CARGO_TARGET_I686_PC_WINDOWS_GNU_RUNNER=wine
+              ;;
+            x86_64-pc-windows-gnu)
+              export WINEARCH=win64
+              export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine
+              ;;
+          esac
+
+          wineboot --init
+          cargo test --locked -p proton-informer-win-helper \
+            --target "${{ matrix.target }}" --all-targets
       - name: Build helper
         env:
           RUSTFLAGS: >-
