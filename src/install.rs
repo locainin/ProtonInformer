@@ -113,7 +113,9 @@ pub fn verify_for_target(target: &ProcessInfo) -> Result<InstallVerification> {
 ///
 /// Returns an error when the manifest is absent, malformed, or does not match.
 pub fn verify_sha256_manifest(helper_path: &Path) -> Result<String> {
-    let manifest_path = PathBuf::from(format!("{}.sha256", helper_path.display()));
+    let mut manifest_name = helper_path.as_os_str().to_os_string();
+    manifest_name.push(".sha256");
+    let manifest_path = PathBuf::from(manifest_name);
     let manifest = std::fs::read_to_string(&manifest_path)
         .map_err(|source| Error::io(&manifest_path, source))?;
     let expected = manifest
