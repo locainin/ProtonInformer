@@ -60,6 +60,8 @@ fn modules_help_explains_pid_and_app_id_selection() {
     assert!(stdout.contains("--pid"));
     assert!(stdout.contains("--app-id"));
     assert!(stdout.contains("--process"));
+    assert!(stdout.contains("--filter"));
+    assert!(stdout.contains("--contains"));
     assert!(output.stderr.is_empty());
 }
 

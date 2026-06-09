@@ -20,6 +20,7 @@ pub mod helper_runtime;
 pub mod inject;
 pub mod install;
 pub mod load;
+pub mod modules;
 pub mod process;
 pub mod runs;
 pub mod steam;

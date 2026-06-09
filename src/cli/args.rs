@@ -147,6 +147,14 @@ pub(super) enum Command {
         /// Guest executable basename used to disambiguate an `AppID`.
         #[arg(long)]
         process: Option<String>,
+
+        /// Case-insensitive module basename substring
+        #[arg(long)]
+        filter: Option<String>,
+
+        /// Case-insensitive module basename or path substring
+        #[arg(long)]
+        contains: Option<String>,
     },
 
     /// Plan a startup DLL override for an app or explicit Wine prefix.

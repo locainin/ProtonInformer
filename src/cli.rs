@@ -18,6 +18,7 @@ use crate::helper_runtime;
 use crate::inject;
 use crate::install;
 use crate::load;
+use crate::modules::{self, ModuleFilters};
 use crate::process::{self, TargetKind};
 use crate::runs;
 use crate::steam;
@@ -144,7 +145,18 @@ fn run(cli: Cli) -> Result<()> {
             pid,
             app_id,
             process,
-        } => run_modules(pid, app_id, process.as_deref(), cli.json)?,
+            filter,
+            contains,
+        } => run_modules(
+            pid,
+            app_id,
+            process.as_deref(),
+            &ModuleFilters {
+                name: filter,
+                contains,
+            },
+            cli.json,
+        )?,
         Command::OverridePlan {
             payload,
             dll_name,
@@ -200,10 +212,12 @@ fn run_modules(
     pid: Option<u32>,
     app_id: Option<u32>,
     process_name: Option<&str>,
+    filters: &ModuleFilters,
     json: bool,
 ) -> Result<()> {
     let target = inject::select_target(pid, app_id, process_name)?;
-    let result = helper_runtime::query_modules(&target)?;
+    let mut result = helper_runtime::query_modules(&target)?;
+    modules::apply(&mut result, filters);
     if json {
         output::print_json(&result)
     } else {
