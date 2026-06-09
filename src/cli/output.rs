@@ -235,13 +235,27 @@ fn display_optional_path(path: Option<&Path>) -> String {
     path.map_or_else(|| "<unknown>".into(), |path| path.display().to_string())
 }
 
-/// Writes the verified helper installation identity.
-pub(super) fn print_install_verification(report: &InstallVerification) {
-    println!("Helper Installation");
-    println!("  Path:         {}", report.helper_path.display());
-    println!("  Architecture: {}", report.architecture);
-    println!("  Version:      {}", report.version);
-    println!("  Schema:       {}", report.schema_version);
-    println!("  SHA-256:      {}", report.helper_sha256);
-    println!("  Verified:     yes");
+/// Writes every verified helper installation identity.
+pub(super) fn print_install_verifications(reports: &[InstallVerification]) {
+    for (index, report) in reports.iter().enumerate() {
+        if index != 0 {
+            println!();
+        }
+        println!("Helper Installation");
+        println!("  Path:             {}", report.helper_path.display());
+        println!("  Architecture:     {}", report.architecture);
+        println!(
+            "  Version:          {}",
+            report.version.as_deref().unwrap_or("<not probed>")
+        );
+        println!(
+            "  Schema:           {}",
+            report
+                .schema_version
+                .map_or_else(|| "<not probed>".into(), |version| version.to_string())
+        );
+        println!("  SHA-256:          {}", report.helper_sha256);
+        println!("  Static verified:  yes");
+        println!("  Runtime verified: {}", report.runtime_verified);
+    }
 }

@@ -18,31 +18,35 @@ const HEX: &[u8; 16] = b"0123456789abcdef";
 /// Successful helper installation verification.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstallVerification {
-    /// Architecture verified on disk and inside Wine or Proton.
+    /// Architecture verified on disk.
     pub architecture: Architecture,
     /// SHA-256 recorded in the adjacent release manifest.
     pub helper_sha256: String,
-    /// Trusted helper executable.
+    /// Helper executable that passed local file checks.
     pub helper_path: PathBuf,
-    /// Protocol schema reported by the helper.
-    pub schema_version: u32,
-    /// Helper semantic version.
-    pub version: String,
+    /// Whether the helper was also executed inside Wine or Proton.
+    pub runtime_verified: bool,
+    /// Protocol schema reported by a live helper probe.
+    pub schema_version: Option<u32>,
+    /// Helper semantic version reported by a live helper probe.
+    pub version: Option<String>,
 }
 
-/// Verifies one helper file and executes its version probe in the target runtime.
+/// Verifies one helper file without requiring a running game.
 ///
 /// # Errors
 ///
-/// Returns an error for untrusted permissions, missing or mismatched manifests,
-/// incompatible helper identity, or runtime execution failure.
-pub fn verify_for_target(target: &ProcessInfo) -> Result<InstallVerification> {
-    let architecture = target
-        .guest_architecture
-        .ok_or_else(|| Error::InvalidInput("target guest architecture is unknown".into()))?;
+/// Returns an error for unsupported architectures, unsafe permissions, or
+/// missing and mismatched release manifests.
+pub fn verify_static(architecture: Architecture) -> Result<InstallVerification> {
+    if !matches!(architecture, Architecture::X86 | Architecture::X86_64) {
+        return Err(Error::InvalidInput(format!(
+            "{architecture} has no supported Windows helper"
+        )));
+    }
     let helper_path = crate::helper::find_wine_helper(architecture).ok_or_else(|| {
         Error::InvalidInput(format!(
-            "no trusted {architecture} Windows helper is installed"
+            "no permission-safe {architecture} Windows helper is installed"
         ))
     })?;
     if !crate::helper::helper_permissions_are_trusted(&helper_path) {
@@ -52,6 +56,39 @@ pub fn verify_for_target(target: &ProcessInfo) -> Result<InstallVerification> {
         )));
     }
     let helper_sha256 = verify_sha256_manifest(&helper_path)?;
+    Ok(InstallVerification {
+        architecture,
+        helper_sha256,
+        helper_path,
+        runtime_verified: false,
+        schema_version: None,
+        version: None,
+    })
+}
+
+/// Verifies every packaged helper without requiring a running game.
+///
+/// # Errors
+///
+/// Returns the first static verification failure.
+pub fn verify_all_static() -> Result<Vec<InstallVerification>> {
+    [Architecture::X86, Architecture::X86_64]
+        .into_iter()
+        .map(verify_static)
+        .collect()
+}
+
+/// Verifies one helper file and executes its version probe in the target runtime.
+///
+/// # Errors
+///
+/// Returns an error for unsafe permissions, missing or mismatched manifests,
+/// incompatible helper identity, or runtime execution failure.
+pub fn verify_for_target(target: &ProcessInfo) -> Result<InstallVerification> {
+    let architecture = target
+        .guest_architecture
+        .ok_or_else(|| Error::InvalidInput("target guest architecture is unknown".into()))?;
+    let mut verification = verify_static(architecture)?;
     let invocation =
         crate::helper_runtime::diagnostic_invocation(target, architecture, "--version-json")?;
     let output = crate::helper_executor::execute(&invocation, 10_000)?;
@@ -64,13 +101,10 @@ pub fn verify_for_target(target: &ProcessInfo) -> Result<InstallVerification> {
     }
     let version: HelperVersion = serde_json::from_str(&output.stdout)?;
     validate_version(&version, architecture)?;
-    Ok(InstallVerification {
-        architecture,
-        helper_sha256,
-        helper_path,
-        schema_version: version.schema_version,
-        version: version.helper_version,
-    })
+    verification.runtime_verified = true;
+    verification.schema_version = Some(version.schema_version);
+    verification.version = Some(version.helper_version);
+    Ok(verification)
 }
 
 /// Verifies an adjacent `<helper>.sha256` release manifest.

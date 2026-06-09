@@ -2,7 +2,8 @@
 
 use std::fs;
 
-use proton_informer::install::verify_sha256_manifest;
+use proton_informer::install::{verify_sha256_manifest, verify_static};
+use proton_informer::types::Architecture;
 use tempfile::tempdir;
 
 #[test]
@@ -38,4 +39,12 @@ fn mismatched_adjacent_sha256_manifest_is_rejected() {
     let error = verify_sha256_manifest(&helper).expect_err("mismatch must fail");
 
     assert!(error.to_string().contains("does not match"));
+}
+
+#[test]
+fn unsupported_architecture_is_rejected_before_helper_discovery() {
+    let error = verify_static(Architecture::Aarch64)
+        .expect_err("unsupported helper architecture must fail");
+
+    assert!(error.to_string().contains("no supported Windows helper"));
 }

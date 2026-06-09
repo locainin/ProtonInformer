@@ -159,8 +159,12 @@ pub(super) enum Command {
 
     /// Verify helper permissions, checksum, version, schema, and architecture.
     VerifyInstall {
-        /// Running Wine or Proton process used for the runtime version probe.
-        #[arg(long)]
-        pid: u32,
+        /// Verify only the helper for this architecture without a live probe.
+        #[arg(long, value_enum, conflicts_with = "pid")]
+        arch: Option<Architecture>,
+
+        /// Also run a version and schema probe in this Wine or Proton process.
+        #[arg(long, conflicts_with = "arch")]
+        pid: Option<u32>,
     },
 }

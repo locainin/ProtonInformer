@@ -136,7 +136,7 @@ fn run(cli: Cli) -> Result<()> {
         } => run_plan(&payload, pid, target_arch, cli.json)?,
         Command::Processes { wine_only } => run_processes(wine_only, cli.json)?,
         Command::SteamGames => run_steam_games(cli.json)?,
-        Command::VerifyInstall { pid } => run_verify_install(pid, cli.json)?,
+        Command::VerifyInstall { arch, pid } => run_verify_install(arch, pid, cli.json)?,
     }
 
     Ok(())
@@ -269,14 +269,24 @@ fn run_steam_games(json: bool) -> Result<()> {
     }
 }
 
-/// Verifies one helper install against a live runtime.
-fn run_verify_install(pid: u32, json: bool) -> Result<()> {
-    let target = process::inspect(pid)?;
-    let report = install::verify_for_target(&target)?;
-    if json {
-        output::print_json(&report)
+/// Verifies packaged helpers offline or adds a live runtime probe.
+fn run_verify_install(
+    architecture: Option<crate::types::Architecture>,
+    pid: Option<u32>,
+    json: bool,
+) -> Result<()> {
+    let reports = if let Some(pid) = pid {
+        let target = process::inspect(pid)?;
+        vec![install::verify_for_target(&target)?]
+    } else if let Some(architecture) = architecture {
+        vec![install::verify_static(architecture)?]
     } else {
-        output::print_install_verification(&report);
+        install::verify_all_static()?
+    };
+    if json {
+        output::print_json(&reports)
+    } else {
+        output::print_install_verifications(&reports);
         Ok(())
     }
 }

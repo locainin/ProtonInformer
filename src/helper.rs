@@ -11,10 +11,7 @@ use crate::types::Architecture;
 #[must_use]
 pub fn find_wine_helper(architecture: Architecture) -> Option<PathBuf> {
     let file_names: &[&str] = match architecture {
-        Architecture::X86 => &[
-            "proton-informer-win32-helper.exe",
-            "proton-informer-win-helper.exe",
-        ],
+        Architecture::X86 => &["proton-informer-win32-helper.exe"],
         Architecture::X86_64 => &["proton-informer-win-helper.exe"],
         Architecture::Arm | Architecture::Aarch64 | Architecture::Unknown => return None,
     };
