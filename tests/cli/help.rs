@@ -74,6 +74,8 @@ fn inject_help_explains_simple_and_advanced_target_selection() {
     assert!(stdout.contains("--app-id"));
     assert!(stdout.contains("--pid"));
     assert!(stdout.contains("--process"));
+    assert!(stdout.contains("--wait-for"));
+    assert!(stdout.contains("named final game process"));
     assert!(stdout.contains("--payload"));
     assert!(stdout.contains("--dry-run"));
     assert!(stdout.contains("--yes"));

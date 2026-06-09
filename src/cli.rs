@@ -88,6 +88,7 @@ fn run(cli: Cli) -> Result<()> {
             pid,
             app_id,
             process,
+            wait_for,
             dry_run,
             yes,
             keep_run_files,
@@ -97,6 +98,10 @@ fn run(cli: Cli) -> Result<()> {
             pid,
             app_id,
             process,
+            wait_for: wait_for
+                .as_deref()
+                .map(inject::parse_wait_duration)
+                .transpose()?,
             mode: requested_load_mode(dry_run, yes)?,
             keep_run_files,
             timeout_ms,
@@ -198,6 +203,7 @@ struct InjectOptions {
     pid: Option<u32>,
     app_id: Option<u32>,
     process: Option<String>,
+    wait_for: Option<std::time::Duration>,
     mode: LoadMode,
     keep_run_files: bool,
     timeout_ms: u64,
@@ -228,7 +234,12 @@ fn run_inspect(payload: &std::path::Path, json: bool) -> Result<()> {
 
 /// Runs target discovery followed by the existing validated load flow.
 fn run_inject(options: &InjectOptions) -> Result<()> {
-    let target = inject::select_target(options.pid, options.app_id, options.process.as_deref())?;
+    let target = inject::select_target_with_wait(
+        options.pid,
+        options.app_id,
+        options.process.as_deref(),
+        options.wait_for,
+    )?;
     if options.output == OutputMode::Human {
         output::print_selected_target(&target);
     }

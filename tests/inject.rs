@@ -1,8 +1,9 @@
 //! One-command Steam process selection checks.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use proton_informer::inject::select_steam_process;
+use proton_informer::inject::{parse_wait_duration, select_steam_process};
 use proton_informer::process::{
     ClassificationConfidence, EnvironmentStatus, GuestExecutableCandidate, GuestExecutableSource,
     ProcessInfo, TargetKind,
@@ -80,4 +81,19 @@ fn app_id_never_guesses_when_multiple_game_processes_match() {
     .expect_err("ambiguous targets must fail");
 
     assert!(error.to_string().contains("add --process or use --pid"));
+}
+
+#[test]
+fn process_wait_duration_is_positive_and_bounded() {
+    assert_eq!(
+        parse_wait_duration("30s").expect("thirty second wait"),
+        Duration::from_secs(30)
+    );
+    assert_eq!(
+        parse_wait_duration("5m").expect("maximum wait"),
+        Duration::from_mins(5)
+    );
+    assert!(parse_wait_duration("0s").is_err());
+    assert!(parse_wait_duration("301s").is_err());
+    assert!(parse_wait_duration("30").is_err());
 }

@@ -64,6 +64,16 @@ pub(super) enum Command {
         #[arg(long)]
         process: Option<String>,
 
+        /// Wait for the named final game process, using s, m, h, or d.
+        #[arg(
+            long,
+            value_name = "DURATION",
+            requires = "app_id",
+            requires = "process",
+            conflicts_with = "pid"
+        )]
+        wait_for: Option<String>,
+
         /// Generate request artifacts without running the helper.
         #[arg(long, conflicts_with = "yes")]
         dry_run: bool,
