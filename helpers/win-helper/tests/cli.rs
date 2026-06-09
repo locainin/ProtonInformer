@@ -1,4 +1,4 @@
-//! Helper command-line and JSON smoke checks.
+//! Helper command-line and JSON smoke checks
 
 use std::process::Command;
 
@@ -10,6 +10,7 @@ use proton_informer_helper_protocol::{
 };
 use tempfile::tempdir;
 
+/// Confirms version output reports capabilities for the compiled platform
 #[test]
 fn version_json_reports_host_build_capabilities_truthfully() {
     let output = Command::new(env!("CARGO_BIN_EXE_proton-informer-win-helper"))
@@ -37,6 +38,7 @@ fn version_json_reports_host_build_capabilities_truthfully() {
     }
 }
 
+/// Confirms the self-test reports platform support without mutating a process
 #[test]
 fn self_test_json_reports_platform_status() {
     let output = Command::new(env!("CARGO_BIN_EXE_proton-informer-win-helper"))
@@ -51,6 +53,7 @@ fn self_test_json_reports_platform_status() {
     assert!(!result.checks.is_empty());
 }
 
+/// Confirms unknown commands stop before protocol dispatch
 #[test]
 fn unknown_command_fails_without_running_an_operation() {
     let output = Command::new(env!("CARGO_BIN_EXE_proton-informer-win-helper"))
@@ -62,6 +65,36 @@ fn unknown_command_fails_without_running_an_operation() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("usage error"));
 }
 
+/// Confirms an empty command line returns a direct usage failure
+#[test]
+fn missing_command_prints_a_usage_error() {
+    let output = Command::new(env!("CARGO_BIN_EXE_proton-informer-win-helper"))
+        .output()
+        .expect("helper should start");
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("missing command"));
+}
+
+/// Confirms request execution accepts one path and rejects extra arguments
+#[test]
+fn request_command_requires_exactly_one_path() {
+    let missing = Command::new(env!("CARGO_BIN_EXE_proton-informer-win-helper"))
+        .arg("--request-json")
+        .output()
+        .expect("helper should start");
+    let extra = Command::new(env!("CARGO_BIN_EXE_proton-informer-win-helper"))
+        .args(["--version-json", "extra"])
+        .output()
+        .expect("helper should start");
+
+    assert!(!missing.status.success());
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("requires a path"));
+    assert!(!extra.status.success());
+    assert!(String::from_utf8_lossy(&extra.stderr).contains("unexpected extra argument"));
+}
+
+/// Confirms long help prints the documented helper interface
 #[test]
 fn help_prints_clean_usage_and_succeeds() {
     let output = Command::new(env!("CARGO_BIN_EXE_proton-informer-win-helper"))
@@ -74,6 +107,24 @@ fn help_prints_clean_usage_and_succeeds() {
     assert!(output.stderr.is_empty());
 }
 
+/// Confirms short and long help flags remain equivalent
+#[test]
+fn short_help_matches_long_help() {
+    let short = Command::new(env!("CARGO_BIN_EXE_proton-informer-win-helper"))
+        .arg("-h")
+        .output()
+        .expect("helper should start");
+    let long = Command::new(env!("CARGO_BIN_EXE_proton-informer-win-helper"))
+        .arg("--help")
+        .output()
+        .expect("helper should start");
+
+    assert!(short.status.success());
+    assert_eq!(short.stdout, long.stdout);
+    assert!(short.stderr.is_empty());
+}
+
+/// Confirms malformed JSON uses an uncorrelated protocol failure
 #[test]
 fn malformed_request_returns_a_correlated_protocol_failure() {
     let directory = tempdir().expect("temporary directory");
@@ -97,6 +148,7 @@ fn malformed_request_returns_a_correlated_protocol_failure() {
     );
 }
 
+/// Confirms oversized requests fail before unbounded JSON parsing
 #[test]
 fn oversized_request_is_rejected_before_json_parsing() {
     let directory = tempdir().expect("temporary directory");
