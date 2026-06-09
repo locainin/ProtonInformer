@@ -89,7 +89,7 @@ pub fn plan_load_dry_run(
 }
 
 /// Resolves the exact Windows PID before creating a mutating load request.
-fn resolve_windows_target(
+pub(super) fn resolve_windows_target(
     target: &ProcessInfo,
     architecture: Architecture,
     prefix: &Path,

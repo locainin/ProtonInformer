@@ -13,6 +13,7 @@ use crate::install::InstallVerification;
 use crate::load::LoadExecutionResult;
 use crate::process::ProcessInfo;
 use crate::steam::SteamDiscoveryReport;
+use proton_informer_helper_protocol::ModuleQueryResult;
 
 /// Machine-readable error response.
 #[derive(Debug, Serialize)]
@@ -182,6 +183,16 @@ pub(super) fn print_selected_target(process: &ProcessInfo) {
             .steam_app_id
             .map_or_else(|| "<unknown>".into(), |id| id.to_string())
     );
+}
+
+/// Writes loaded modules returned by the exact Windows target.
+pub(super) fn print_modules(result: &ModuleQueryResult) {
+    println!("Modules");
+    println!("  Windows PID: {}", result.target.windows_pid);
+    println!("  Process:     {}", result.target.process_name);
+    for module in &result.modules {
+        println!("  {}  {}", module.module_name, module.windows_path);
+    }
 }
 
 /// Writes Steam discovery results and retained metadata warnings.

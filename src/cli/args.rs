@@ -113,6 +113,21 @@ pub(super) enum Command {
         timeout_ms: u64,
     },
 
+    /// List modules loaded by one exact Wine or Proton process.
+    Modules {
+        /// Exact Linux process identifier.
+        #[arg(long, required_unless_present = "app_id", conflicts_with = "app_id")]
+        pid: Option<u32>,
+
+        /// Steam application identifier used for game and process discovery.
+        #[arg(long, required_unless_present = "pid", conflicts_with = "pid")]
+        app_id: Option<u32>,
+
+        /// Guest executable basename used to disambiguate an `AppID`.
+        #[arg(long)]
+        process: Option<String>,
+    },
+
     /// Plan a startup DLL override for an app or explicit Wine prefix.
     OverridePlan {
         /// Payload DLL to validate.

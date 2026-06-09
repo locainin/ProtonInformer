@@ -123,6 +123,11 @@ fn run(cli: Cli) -> Result<()> {
             timeout_ms,
             json: cli.json,
         })?,
+        Command::Modules {
+            pid,
+            app_id,
+            process,
+        } => run_modules(pid, app_id, process.as_deref(), cli.json)?,
         Command::OverridePlan {
             payload,
             dll_name,
@@ -140,6 +145,23 @@ fn run(cli: Cli) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Resolves one target and prints the helper's loaded-module inventory.
+fn run_modules(
+    pid: Option<u32>,
+    app_id: Option<u32>,
+    process_name: Option<&str>,
+    json: bool,
+) -> Result<()> {
+    let target = inject::select_target(pid, app_id, process_name)?;
+    let result = helper_runtime::query_modules(&target)?;
+    if json {
+        output::print_json(&result)
+    } else {
+        output::print_modules(&result);
+        Ok(())
+    }
 }
 
 /// Fully parsed inputs for the product-level injection command.
