@@ -27,6 +27,9 @@ pub enum HelperFailure {
     /// No process matched the target selector.
     #[error("{0}")]
     TargetNotFound(String),
+    /// The selected process identity changed between validation and mutation.
+    #[error("{0}")]
+    TargetIdentityChanged(String),
     /// Helper command line is invalid.
     #[error("usage error: {0}")]
     Usage(String),
@@ -118,6 +121,7 @@ impl HelperFailure {
             Self::Json(_) => ("json", None),
             Self::ProtocolParseFailed(_) => ("protocol_parse_failed", None),
             Self::TargetNotFound(_) => ("target_not_found", None),
+            Self::TargetIdentityChanged(_) => ("target_identity_changed", None),
             Self::Usage(_) => ("usage", None),
             Self::Validation(_) => ("invalid_request", None),
             Self::ArchitectureMismatch(_) => ("architecture_mismatch", None),

@@ -23,6 +23,7 @@ use windows_sys::Win32::System::Threading::{
 
 use super::common::{OwnedHandle, last_error, last_error_code, null_terminated_wide};
 use super::modules::{ModuleAddress, module_addresses};
+use super::processes::process_creation_time;
 use crate::error::HelperFailure;
 
 /// Remote allocation released after the loader thread no longer uses it.
@@ -229,9 +230,10 @@ pub fn load_library(
     windows_pid: u32,
     windows_path: &str,
     timeout_ms: u64,
+    expected_creation_time_100ns: u64,
 ) -> Result<LoadLibraryThreadResult, HelperFailure> {
     let wide_path = null_terminated_wide(windows_path)?;
-    let process = open_load_process(windows_pid)?;
+    let process = open_load_process(windows_pid, expected_creation_time_100ns)?;
     RemoteLoader::new(process.raw(), windows_pid, &wide_path)?.execute(process.raw(), timeout_ms)
 }
 
@@ -263,7 +265,10 @@ fn make_executable(
 }
 
 /// Opens one process with only the rights required for `LoadLibraryW`.
-fn open_load_process(windows_pid: u32) -> Result<OwnedHandle, HelperFailure> {
+fn open_load_process(
+    windows_pid: u32,
+    expected_creation_time_100ns: u64,
+) -> Result<OwnedHandle, HelperFailure> {
     let access = PROCESS_CREATE_THREAD
         | PROCESS_QUERY_INFORMATION
         | PROCESS_VM_OPERATION
@@ -283,7 +288,18 @@ fn open_load_process(windows_pid: u32) -> Result<OwnedHandle, HelperFailure> {
             operation: "OpenProcess load",
         });
     }
-    OwnedHandle::new(handle, "OpenProcess load")
+    let process = OwnedHandle::new(handle, "OpenProcess load")?;
+    let actual_creation_time_100ns = process_creation_time(&process).ok_or_else(|| {
+        HelperFailure::TargetIdentityChanged(format!(
+            "Windows process {windows_pid} creation time could not be verified"
+        ))
+    })?;
+    if actual_creation_time_100ns != expected_creation_time_100ns {
+        return Err(HelperFailure::TargetIdentityChanged(format!(
+            "Windows process {windows_pid} was replaced before loading"
+        )));
+    }
+    Ok(process)
 }
 
 /// Finds the process-local `LoadLibraryW` function address.

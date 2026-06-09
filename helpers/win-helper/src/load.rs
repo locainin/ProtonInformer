@@ -84,7 +84,20 @@ pub fn run(
         process.windows_pid,
         &locked.canonical_path,
         options.timeout_ms,
+        process.creation_time_100ns.ok_or_else(|| {
+            HelperFailure::TargetIdentityChanged(
+                "selected process creation time is unavailable".into(),
+            )
+        })?,
     )?;
+    let process_after = crate::process::resolve(target)?;
+    if process_after.windows_pid != process.windows_pid
+        || process_after.creation_time_100ns != process.creation_time_100ns
+    {
+        return Err(HelperFailure::TargetIdentityChanged(
+            "selected process identity changed before module verification".into(),
+        ));
+    }
     let modules_after = platform_modules(process.windows_pid)?;
     let Some(loaded) = find_module(&modules_after, &locked.canonical_path) else {
         return if thread.load_library_return == 0 {
@@ -425,8 +438,14 @@ fn platform_load_library(
     windows_pid: u32,
     windows_path: &str,
     timeout_ms: u64,
+    expected_creation_time_100ns: u64,
 ) -> Result<LoadThreadOutcome, HelperFailure> {
-    let result = crate::winapi::load_library(windows_pid, windows_path, timeout_ms)?;
+    let result = crate::winapi::load_library(
+        windows_pid,
+        windows_path,
+        timeout_ms,
+        expected_creation_time_100ns,
+    )?;
     Ok(LoadThreadOutcome {
         exit_code_low32: result.exit_code_low32,
         load_library_return: result.load_library_return,
@@ -454,6 +473,7 @@ fn platform_load_library(
     _windows_pid: u32,
     _windows_path: &str,
     _timeout_ms: u64,
+    _expected_creation_time_100ns: u64,
 ) -> Result<LoadThreadOutcome, HelperFailure> {
     Err(HelperFailure::UnsupportedOperation(
         "LoadLibrary requires a Windows helper build".into(),

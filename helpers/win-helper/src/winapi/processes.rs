@@ -134,7 +134,7 @@ fn process_architecture(process: &OwnedHandle) -> ProtocolArchitecture {
 }
 
 /// Returns the immutable process creation timestamp used to reject PID reuse.
-fn process_creation_time(process: &OwnedHandle) -> Option<u64> {
+pub(super) fn process_creation_time(process: &OwnedHandle) -> Option<u64> {
     let mut creation = FILETIME {
         dwLowDateTime: 0,
         dwHighDateTime: 0,
