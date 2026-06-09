@@ -20,7 +20,6 @@ use crate::wine;
 #[serde(rename_all = "snake_case")]
 pub enum Backend {
     WinePeHelper,
-    NativeElfHelper,
     WineDllOverride,
 }
 
@@ -106,16 +105,11 @@ pub fn plan_running(
 
     let backend = match (payload.format, target.target_kind) {
         (BinaryFormat::PeDll, TargetKind::WineProtonWindows) => Backend::WinePeHelper,
-        (BinaryFormat::ElfSharedObject, TargetKind::NativeLinux)
-            if cfg!(feature = "native-elf") =>
-        {
-            Backend::NativeElfHelper
-        }
         (BinaryFormat::ElfSharedObject, TargetKind::NativeLinux) => {
             return Err(reject(
                 &payload,
                 &target,
-                "native ELF loading is disabled; rebuild with --features native-elf",
+                "native ELF loading is outside this tool's supported scope",
             ));
         }
         (BinaryFormat::PeDll, TargetKind::NativeLinux) => {
