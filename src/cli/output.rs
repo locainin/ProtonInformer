@@ -28,6 +28,8 @@ struct ErrorEnvelope<'a> {
 struct ErrorBody<'a> {
     kind: &'static str,
     message: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    windows_error: Option<u32>,
 }
 
 /// Writes a serialized value to standard output.
@@ -38,9 +40,13 @@ pub(super) fn print_json<T: Serialize>(value: &T) -> Result<()> {
 }
 
 /// Writes a structured error to standard error.
-pub(super) fn print_error(kind: &'static str, message: &str) {
+pub(super) fn print_error(kind: &'static str, message: &str, windows_error: Option<u32>) {
     let envelope = ErrorEnvelope {
-        error: ErrorBody { kind, message },
+        error: ErrorBody {
+            kind,
+            message,
+            windows_error,
+        },
         ok: false,
     };
 
@@ -117,6 +123,9 @@ pub(super) fn print_load_result(result: &LoadExecutionResult) {
         println!("  Process:       {}", load.process_name);
         println!("  Module:        {}", load.loaded_module_path);
         println!("  Verified:      {}", load.module_verified);
+        for warning in &load.dependency_warnings {
+            println!("  Warning:       {warning}");
+        }
     }
 }
 

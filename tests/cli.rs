@@ -19,6 +19,7 @@ fn json_argument_error_is_valid_json() {
         serde_json::from_slice(&output.stderr).expect("argument error should be valid JSON");
     assert_eq!(error["ok"], false);
     assert_eq!(error["error"]["kind"], "cli_parse");
+    assert!(error["error"].get("windows_error").is_none());
 }
 
 #[test]

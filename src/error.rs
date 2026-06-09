@@ -91,6 +91,15 @@ impl Error {
             Self::Json(_) => "json",
         }
     }
+
+    /// Returns the target-side Windows error when one was preserved.
+    #[must_use]
+    pub const fn windows_error(&self) -> Option<u32> {
+        match self {
+            Self::HelperRejected { windows_error, .. } => *windows_error,
+            _ => None,
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
