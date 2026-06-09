@@ -30,6 +30,8 @@ struct ErrorBody<'a> {
     message: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     windows_error: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    windows_error_hint: Option<&'static str>,
 }
 
 /// Writes a serialized value to standard output.
@@ -40,12 +42,18 @@ pub(super) fn print_json<T: Serialize>(value: &T) -> Result<()> {
 }
 
 /// Writes a structured error to standard error.
-pub(super) fn print_error(kind: &'static str, message: &str, windows_error: Option<u32>) {
+pub(super) fn print_error(
+    kind: &'static str,
+    message: &str,
+    windows_error: Option<u32>,
+    windows_error_hint: Option<&'static str>,
+) {
     let envelope = ErrorEnvelope {
         error: ErrorBody {
             kind,
             message,
             windows_error,
+            windows_error_hint,
         },
         ok: false,
     };

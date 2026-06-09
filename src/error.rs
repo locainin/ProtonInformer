@@ -101,6 +101,50 @@ impl Error {
             _ => None,
         }
     }
+
+    /// Short user-facing hint for common Windows loader errors
+    #[must_use]
+    pub const fn windows_error_hint(&self) -> Option<&'static str> {
+        match self {
+            Self::HelperRejected {
+                windows_error: Some(2),
+                ..
+            } => Some("file not found"),
+            Self::HelperRejected {
+                windows_error: Some(3),
+                ..
+            } => Some("path not found"),
+            Self::HelperRejected {
+                windows_error: Some(5),
+                ..
+            } => Some("access denied"),
+            Self::HelperRejected {
+                windows_error: Some(126),
+                ..
+            } => Some("a required dependency DLL was not found in the Wine or Proton prefix"),
+            Self::HelperRejected {
+                windows_error: Some(193),
+                ..
+            } => Some("wrong architecture or invalid Win32 image"),
+            Self::HelperRejected {
+                windows_error: Some(1114),
+                ..
+            } => Some("DllMain returned failure during process attach"),
+            Self::HelperRejected { .. }
+            | Self::Io { .. }
+            | Self::EmptyPayload(_)
+            | Self::PayloadTooLarge { .. }
+            | Self::InvalidBinary { .. }
+            | Self::ProcessUnavailable(_)
+            | Self::Rejected(_)
+            | Self::SteamMetadata { .. }
+            | Self::PathConversion { .. }
+            | Self::InvalidInput(_)
+            | Self::HelperExecution(_)
+            | Self::HelperTimeout { .. }
+            | Self::Json(_) => None,
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

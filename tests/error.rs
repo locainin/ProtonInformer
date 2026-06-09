@@ -32,6 +32,32 @@ fn helper_rejection_preserves_target_side_windows_error() {
 }
 
 #[test]
+fn known_windows_loader_errors_return_human_hints() {
+    let error = Error::HelperRejected {
+        kind: "load_library_rejected".into(),
+        message: "LoadLibraryW failed".into(),
+        windows_error: Some(193),
+    };
+
+    assert_eq!(
+        error.windows_error_hint(),
+        Some("wrong architecture or invalid Win32 image")
+    );
+}
+
+#[test]
+fn unknown_windows_loader_errors_keep_only_the_raw_code() {
+    let error = Error::HelperRejected {
+        kind: "load_library_rejected".into(),
+        message: "LoadLibraryW failed".into(),
+        windows_error: Some(9999),
+    };
+
+    assert_eq!(error.windows_error(), Some(9999));
+    assert_eq!(error.windows_error_hint(), None);
+}
+
+#[test]
 fn target_identity_changes_keep_their_specific_json_kind() {
     let error = Error::HelperRejected {
         kind: "target_identity_changed".into(),

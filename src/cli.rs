@@ -53,7 +53,7 @@ where
                 return ExitCode::SUCCESS;
             }
             if json_requested {
-                output::print_error("cli_parse", &error.to_string(), None);
+                output::print_error("cli_parse", &error.to_string(), None, None);
             } else if let Err(print_error) = error.print() {
                 eprintln!("Error: {print_error}");
             }
@@ -66,9 +66,17 @@ where
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             if json {
-                output::print_error(error.kind(), &error.to_string(), error.windows_error());
+                output::print_error(
+                    error.kind(),
+                    &error.to_string(),
+                    error.windows_error(),
+                    error.windows_error_hint(),
+                );
             } else {
                 eprintln!("Error: {error}");
+                if let Some(hint) = error.windows_error_hint() {
+                    eprintln!("Likely cause: {hint}");
+                }
             }
             ExitCode::FAILURE
         }
