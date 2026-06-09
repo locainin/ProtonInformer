@@ -1,8 +1,8 @@
 //! Protocol serialization and semantic validation.
 
 use proton_informer_helper_protocol::{
-    HelperOperation, HelperOptions, HelperPayload, HelperRequest, HelperTarget,
-    MAX_PAYLOAD_SIZE_BYTES, ProtocolArchitecture, SCHEMA_VERSION, TargetSelector,
+    HelperError, HelperOperation, HelperOptions, HelperPayload, HelperRequest, HelperResponse,
+    HelperTarget, MAX_PAYLOAD_SIZE_BYTES, ProtocolArchitecture, SCHEMA_VERSION, TargetSelector,
 };
 
 fn load_request() -> HelperRequest {
@@ -34,6 +34,103 @@ fn load_request_round_trips_without_losing_typed_fields() {
 
     assert_eq!(decoded, request);
     assert!(decoded.validate().is_ok());
+}
+
+#[test]
+fn load_library_request_json_contract_is_stable() {
+    let json = serde_json::to_string_pretty(&load_request()).expect("serialize request");
+
+    assert_eq!(
+        json,
+        r#"{
+  "operation": "load_library",
+  "options": {
+    "timeout_ms": 10000,
+    "verify_module_after_load": true
+  },
+  "payload": {
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size_bytes": 4096,
+    "windows_path": "S:\\common\\Game\\mod.dll"
+  },
+  "request_id": "request-123",
+  "schema_version": 2,
+  "target": {
+    "expected_creation_time_100ns": 123,
+    "expected_architecture": "x86_64",
+    "expected_executable_windows_path": "S:\\common\\Game\\Game.exe",
+    "expected_process_name": "Game.exe",
+    "selector": {
+      "kind": "by_process_name_and_executable_path"
+    }
+  }
+}"#
+    );
+}
+
+#[test]
+fn query_processes_request_json_contract_is_stable() {
+    let request = HelperRequest {
+        operation: HelperOperation::QueryProcesses,
+        options: HelperOptions::default(),
+        payload: None,
+        request_id: "process-query-1".into(),
+        schema_version: SCHEMA_VERSION,
+        target: None,
+    };
+    let json = serde_json::to_string_pretty(&request).expect("serialize request");
+
+    assert_eq!(
+        json,
+        r#"{
+  "operation": "query_processes",
+  "options": {
+    "timeout_ms": 10000,
+    "verify_module_after_load": true
+  },
+  "payload": null,
+  "request_id": "process-query-1",
+  "schema_version": 2,
+  "target": null
+}"#
+    );
+}
+
+#[test]
+fn helper_error_response_json_contract_is_stable() {
+    let response = HelperResponse {
+        error: Some(HelperError {
+            kind: "load_library_rejected".into(),
+            message: "LoadLibraryW failed with Windows error 126".into(),
+            windows_error: Some(126),
+        }),
+        ok: false,
+        operation: HelperOperation::LoadLibrary,
+        request_id: "request-123".into(),
+        result: None,
+        schema_version: SCHEMA_VERSION,
+        warnings: vec!["dependency preflight was incomplete".into()],
+    };
+    let json = serde_json::to_string_pretty(&response).expect("serialize response");
+
+    assert_eq!(
+        json,
+        r#"{
+  "error": {
+    "kind": "load_library_rejected",
+    "message": "LoadLibraryW failed with Windows error 126",
+    "windows_error": 126
+  },
+  "ok": false,
+  "operation": "load_library",
+  "request_id": "request-123",
+  "result": null,
+  "schema_version": 2,
+  "warnings": [
+    "dependency preflight was incomplete"
+  ]
+}"#
+    );
 }
 
 #[test]
