@@ -30,3 +30,14 @@ fn helper_rejection_preserves_target_side_windows_error() {
 
     assert_eq!(error.windows_error(), Some(126));
 }
+
+#[test]
+fn target_identity_changes_keep_their_specific_json_kind() {
+    let error = Error::HelperRejected {
+        kind: "target_identity_changed".into(),
+        message: "process was replaced".into(),
+        windows_error: None,
+    };
+
+    assert_eq!(error.kind(), "target_identity_changed");
+}

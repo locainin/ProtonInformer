@@ -84,6 +84,7 @@ impl Error {
                 "module_verification_failed" => "module_verification_failed",
                 "payload_changed" => "payload_changed",
                 "payload_not_visible" => "payload_not_visible",
+                "target_identity_changed" => "target_identity_changed",
                 "target_not_found" => "target_not_found",
                 _ => "helper_rejected",
             },
