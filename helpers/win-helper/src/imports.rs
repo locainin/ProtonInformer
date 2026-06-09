@@ -102,26 +102,7 @@ pub fn dll_names(path: &Path) -> Result<Vec<String>, HelperFailure> {
             "PE import directory exceeds file-backed section data".into(),
         ));
     }
-    file.seek(SeekFrom::Start(u64::from(import_region.offset)))
-        .map_err(|source| HelperFailure::io("unable to seek to import table", source))?;
-
-    let descriptor_limit = usize::try_from(import_size)
-        .unwrap_or(usize::MAX)
-        .checked_div(IMPORT_DESCRIPTOR_BYTES)
-        .unwrap_or(0)
-        .min(MAX_IMPORTS);
-    let mut descriptors = Vec::new();
-    for _ in 0..descriptor_limit {
-        let mut descriptor = [0_u8; IMPORT_DESCRIPTOR_BYTES];
-        file.read_exact(&mut descriptor)
-            .map_err(|source| HelperFailure::io("unable to read import descriptor", source))?;
-        if descriptor.iter().all(|byte| *byte == 0) {
-            break;
-        }
-        descriptors.push(u32::from_le_bytes(descriptor[12..16].try_into().map_err(
-            |_| HelperFailure::Validation("invalid import descriptor".into()),
-        )?));
-    }
+    let descriptors = read_import_descriptors(&mut file, import_region.offset, import_size)?;
 
     let mut imports = Vec::with_capacity(descriptors.len());
     for name_rva in descriptors {
@@ -133,6 +114,42 @@ pub fn dll_names(path: &Path) -> Result<Vec<String>, HelperFailure> {
     imports.sort_unstable_by_key(|name| name.to_ascii_lowercase());
     imports.dedup_by(|left, right| left.eq_ignore_ascii_case(right));
     Ok(imports)
+}
+
+/// Reads bounded import descriptors and requires their null terminator.
+fn read_import_descriptors(
+    file: &mut File,
+    import_offset: u32,
+    import_size: u32,
+) -> Result<Vec<u32>, HelperFailure> {
+    file.seek(SeekFrom::Start(u64::from(import_offset)))
+        .map_err(|source| HelperFailure::io("unable to seek to import table", source))?;
+    let descriptor_limit = usize::try_from(import_size)
+        .unwrap_or(usize::MAX)
+        .checked_div(IMPORT_DESCRIPTOR_BYTES)
+        .unwrap_or(0)
+        .min(MAX_IMPORTS);
+    if descriptor_limit == 0 {
+        return Err(HelperFailure::Validation(
+            "PE import directory is smaller than one descriptor".into(),
+        ));
+    }
+
+    let mut descriptors = Vec::new();
+    for _ in 0..descriptor_limit {
+        let mut descriptor = [0_u8; IMPORT_DESCRIPTOR_BYTES];
+        file.read_exact(&mut descriptor)
+            .map_err(|source| HelperFailure::io("unable to read import descriptor", source))?;
+        if descriptor.iter().all(|byte| *byte == 0) {
+            return Ok(descriptors);
+        }
+        descriptors.push(u32::from_le_bytes(descriptor[12..16].try_into().map_err(
+            |_| HelperFailure::Validation("invalid import descriptor".into()),
+        )?));
+    }
+    Err(HelperFailure::Validation(
+        "PE import descriptor table has no null terminator".into(),
+    ))
 }
 
 /// Reads section mappings with a strict count from the validated COFF header.
@@ -196,9 +213,18 @@ fn read_c_string(file: &mut File, available: u32) -> Result<String, HelperFailur
         file.read_exact(&mut byte)
             .map_err(|source| HelperFailure::io("unable to read import name", source))?;
         if byte[0] == 0 {
-            return String::from_utf8(bytes).map_err(|error| {
+            let name = String::from_utf8(bytes).map_err(|error| {
                 HelperFailure::Validation(format!("import name is not UTF-8: {error}"))
-            });
+            })?;
+            if name.is_empty()
+                || name.contains(['/', '\\', ':'])
+                || name.bytes().any(|byte| byte.is_ascii_control())
+            {
+                return Err(HelperFailure::Validation(
+                    "import name is not a safe DLL basename".into(),
+                ));
+            }
+            return Ok(name);
         }
         if !byte[0].is_ascii() {
             return Err(HelperFailure::Validation(

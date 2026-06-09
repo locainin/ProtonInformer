@@ -112,3 +112,24 @@ fn parser_rejects_import_name_crossing_raw_section_boundary() {
 
     assert!(error.contains("import name exceeds file-backed section data"));
 }
+
+#[test]
+fn parser_rejects_descriptor_table_without_null_terminator() {
+    let mut fixture = pe_fixture(SECTION_RVA, 40, SECTION_RVA + 0x40, 0x200);
+    fixture[RAW_OFFSET + 20] = 1;
+
+    let error = parse_fixture(&fixture).expect_err("unterminated descriptor table must fail");
+
+    assert!(error.contains("no null terminator"));
+}
+
+#[test]
+fn parser_rejects_import_names_with_path_components() {
+    let mut fixture = pe_fixture(SECTION_RVA, 40, SECTION_RVA + 0x40, 0x200);
+    let name = RAW_OFFSET + 0x40;
+    fixture[name..name + 12].copy_from_slice(b"..\\evil.dll\0");
+
+    let error = parse_fixture(&fixture).expect_err("path-shaped import name must fail");
+
+    assert!(error.contains("safe DLL basename"));
+}
