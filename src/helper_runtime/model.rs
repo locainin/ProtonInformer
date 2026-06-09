@@ -6,6 +6,16 @@ use std::path::PathBuf;
 use proton_informer_helper_protocol::HelperRequest;
 use serde::{Deserialize, Serialize};
 
+/// Host path choice used when building the helper load request
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PayloadPathMode {
+    /// Copy the payload to private run state before loading
+    StagedCopy,
+    /// Load the original payload path after validation
+    OriginalPath,
+}
+
 /// Runtime used to execute the Windows helper.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
@@ -50,6 +60,10 @@ pub struct LoadDryRunPlan {
     pub helper_windows_path: String,
     /// Exact helper invocation.
     pub invocation: HelperInvocation,
+    /// Path mode used for the helper request
+    pub payload_path_mode: PayloadPathMode,
+    /// Host payload path referenced by the helper request
+    pub payload_host_path: PathBuf,
     /// Validated request body.
     pub request: HelperRequest,
     /// Host request path.
@@ -58,6 +72,4 @@ pub struct LoadDryRunPlan {
     pub request_windows_path: String,
     /// Per-request state directory.
     pub run_directory: PathBuf,
-    /// Private staged payload used for helper validation and loading.
-    pub staged_payload_host_path: PathBuf,
 }

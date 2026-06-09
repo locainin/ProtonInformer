@@ -108,6 +108,8 @@ pub(super) fn print_load_dry_run(plan: &LoadDryRunPlan) {
     println!("  Request ID:   {}", plan.request.request_id);
     println!("  Run state:    {}", plan.run_directory.display());
     println!("  Request file: {}", plan.request_host_path.display());
+    println!("  Payload mode: {:?}", plan.payload_path_mode);
+    println!("  Payload path: {}", plan.payload_host_path.display());
     println!("  Helper:       {}", plan.helper_windows_path);
     println!("  Program:      {}", plan.invocation.program.display());
     for (name, value) in &plan.invocation.environment {

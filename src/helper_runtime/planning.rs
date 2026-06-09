@@ -17,8 +17,8 @@ use crate::types::Architecture;
 use crate::wine;
 
 use super::invocation::{invocation, select_runtime};
-use super::model::LoadDryRunPlan;
-use super::state::{create_request_directory, stage_payload, write_private_json};
+use super::model::{LoadDryRunPlan, PayloadPathMode};
+use super::state::{create_request_directory, prepare_payload_for_request, write_private_json};
 
 /// Creates secure request artifacts and a non-executing helper invocation.
 ///
@@ -30,6 +30,7 @@ pub fn plan_load_dry_run(
     payload: &BinaryInspection,
     target: &ProcessInfo,
     timeout_ms: u64,
+    payload_path_mode: PayloadPathMode,
 ) -> Result<LoadDryRunPlan> {
     let prefix = target
         .wine_prefix
@@ -48,10 +49,11 @@ pub fn plan_load_dry_run(
             &helper_windows_path,
             &run_directory,
         )?;
-        let staged_payload = stage_payload(payload, &run_directory)?;
-        let staged_payload_host_path = staged_payload.path.clone();
+        let request_payload =
+            prepare_payload_for_request(payload, &run_directory, payload_path_mode)?;
+        let payload_host_path = request_payload.path.clone();
         let request = helper_protocol::load_request(
-            &staged_payload,
+            &request_payload,
             target,
             &windows_target,
             timeout_ms,
@@ -70,11 +72,12 @@ pub fn plan_load_dry_run(
         Ok(LoadDryRunPlan {
             helper_windows_path,
             invocation,
+            payload_host_path,
+            payload_path_mode,
             request,
             request_host_path,
             request_windows_path,
             run_directory: run_directory.clone(),
-            staged_payload_host_path,
         })
     })();
     if result.is_err() {

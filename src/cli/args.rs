@@ -90,6 +90,10 @@ pub(super) enum Command {
         #[arg(long)]
         keep_run_files: bool,
 
+        /// Load the original payload path instead of a private staged copy
+        #[arg(long)]
+        original_payload_path: bool,
+
         /// Maximum helper operation time in milliseconds.
         #[arg(
             long,
@@ -124,6 +128,10 @@ pub(super) enum Command {
         /// Retain bounded helper stdout and stderr in the private run directory.
         #[arg(long)]
         keep_run_files: bool,
+
+        /// Load the original payload path instead of a private staged copy
+        #[arg(long)]
+        original_payload_path: bool,
 
         /// Maximum helper operation time in milliseconds.
         #[arg(

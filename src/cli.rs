@@ -14,7 +14,7 @@ use crate::binary;
 use crate::decision;
 use crate::doctor;
 use crate::error::{Error, Result};
-use crate::helper_runtime;
+use crate::helper_runtime::{self, PayloadPathMode};
 use crate::inject;
 use crate::install;
 use crate::load;
@@ -101,6 +101,7 @@ fn run(cli: Cli) -> Result<()> {
             dry_run,
             yes,
             keep_run_files,
+            original_payload_path,
             timeout_ms,
         } => run_inject(&InjectOptions {
             payload,
@@ -113,6 +114,7 @@ fn run(cli: Cli) -> Result<()> {
                 .transpose()?,
             mode: requested_load_mode(dry_run, yes)?,
             keep_run_files,
+            payload_path_mode: payload_path_mode(original_payload_path),
             timeout_ms,
             output: OutputMode::from_json(cli.json),
         })?,
@@ -123,6 +125,7 @@ fn run(cli: Cli) -> Result<()> {
             dry_run,
             yes,
             keep_run_files,
+            original_payload_path,
             timeout_ms,
         } => run_load(&LoadOptions {
             payload,
@@ -138,6 +141,7 @@ fn run(cli: Cli) -> Result<()> {
                 ));
             },
             keep_run_files,
+            payload_path_mode: payload_path_mode(original_payload_path),
             timeout_ms,
             json: cli.json,
         })?,
@@ -235,6 +239,7 @@ struct InjectOptions {
     wait_for: Option<std::time::Duration>,
     mode: LoadMode,
     keep_run_files: bool,
+    payload_path_mode: PayloadPathMode,
     timeout_ms: u64,
     output: OutputMode,
 }
@@ -272,15 +277,16 @@ fn run_inject(options: &InjectOptions) -> Result<()> {
     if options.output == OutputMode::Human {
         output::print_selected_target(&target);
     }
-    run_load_for_target(
-        &options.payload,
+    run_load_for_target(&TargetLoadOptions {
+        payload_path: &options.payload,
         target,
-        None,
-        options.mode,
-        options.keep_run_files,
-        options.timeout_ms,
-        options.output == OutputMode::Json,
-    )
+        target_architecture: None,
+        mode: options.mode,
+        keep_run_files: options.keep_run_files,
+        payload_path_mode: options.payload_path_mode,
+        timeout_ms: options.timeout_ms,
+        json: options.output == OutputMode::Json,
+    })
 }
 
 /// Converts command flags into one explicit load behavior.
@@ -291,6 +297,15 @@ fn requested_load_mode(dry_run: bool, yes: bool) -> Result<LoadMode> {
         _ => Err(Error::InvalidInput(
             "select --dry-run to inspect the request or --yes to execute it".into(),
         )),
+    }
+}
+
+/// Converts a compatibility flag into an explicit payload path mode
+const fn payload_path_mode(original_payload_path: bool) -> PayloadPathMode {
+    if original_payload_path {
+        PayloadPathMode::OriginalPath
+    } else {
+        PayloadPathMode::StagedCopy
     }
 }
 
@@ -411,6 +426,7 @@ struct LoadOptions {
     target_arch: Option<crate::types::Architecture>,
     mode: LoadMode,
     keep_run_files: bool,
+    payload_path_mode: PayloadPathMode,
     timeout_ms: u64,
     json: bool,
 }
@@ -418,29 +434,35 @@ struct LoadOptions {
 /// Validates and prepares one helper-backed running-process load.
 fn run_load(options: &LoadOptions) -> Result<()> {
     let target = process::inspect(options.pid)?;
-    run_load_for_target(
-        &options.payload,
+    run_load_for_target(&TargetLoadOptions {
+        payload_path: &options.payload,
         target,
-        options.target_arch,
-        options.mode,
-        options.keep_run_files,
-        options.timeout_ms,
-        options.json,
-    )
+        target_architecture: options.target_arch,
+        mode: options.mode,
+        keep_run_files: options.keep_run_files,
+        payload_path_mode: options.payload_path_mode,
+        timeout_ms: options.timeout_ms,
+        json: options.json,
+    })
 }
 
-/// Runs the shared validated helper flow for one already selected target.
-fn run_load_for_target(
-    payload_path: &std::path::Path,
+/// Fully resolved load inputs for one already selected target
+struct TargetLoadOptions<'a> {
+    payload_path: &'a std::path::Path,
     target: crate::process::ProcessInfo,
     target_architecture: Option<crate::types::Architecture>,
     mode: LoadMode,
     keep_run_files: bool,
+    payload_path_mode: PayloadPathMode,
     timeout_ms: u64,
     json: bool,
-) -> Result<()> {
-    let payload = binary::inspect(payload_path)?;
-    let plan = decision::plan_running(payload, target, target_architecture)?;
+}
+
+/// Runs the shared validated helper flow for one already selected target
+fn run_load_for_target(options: &TargetLoadOptions<'_>) -> Result<()> {
+    let payload = binary::inspect(options.payload_path)?;
+    let plan =
+        decision::plan_running(payload, options.target.clone(), options.target_architecture)?;
     if !plan.executable_now {
         return Err(Error::Rejected(
             "load is not executable because one or more requirements did not fully pass; run plan \
@@ -448,10 +470,15 @@ fn run_load_for_target(
                 .into(),
         ));
     }
-    let helper_plan = helper_runtime::plan_load_dry_run(&plan.payload, &plan.target, timeout_ms)?;
-    match mode {
+    let helper_plan = helper_runtime::plan_load_dry_run(
+        &plan.payload,
+        &plan.target,
+        options.timeout_ms,
+        options.payload_path_mode,
+    )?;
+    match options.mode {
         LoadMode::DryRun => {
-            if json {
+            if options.json {
                 output::print_json(&helper_plan)
             } else {
                 output::print_load_dry_run(&helper_plan);
@@ -459,8 +486,8 @@ fn run_load_for_target(
             }
         }
         LoadMode::Execute => {
-            let result = load::execute(&helper_plan, keep_run_files)?;
-            if json {
+            let result = load::execute(&helper_plan, options.keep_run_files)?;
+            if options.json {
                 output::print_json(&result)
             } else {
                 output::print_load_result(&result);

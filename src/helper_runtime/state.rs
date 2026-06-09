@@ -13,11 +13,26 @@ use crate::binary::BinaryInspection;
 use crate::error::{Error, Result};
 use crate::wine;
 
-/// Copies one inspected payload into owner-only request state.
-pub(super) fn stage_payload(
+use super::model::PayloadPathMode;
+
+/// Selects the payload file that should appear in the helper request
+///
+/// # Errors
+///
+/// Returns an error when staged-copy mode cannot copy or re-inspect the payload
+pub fn prepare_payload_for_request(
     payload: &BinaryInspection,
     run_directory: &Path,
+    payload_path_mode: PayloadPathMode,
 ) -> Result<BinaryInspection> {
+    match payload_path_mode {
+        PayloadPathMode::StagedCopy => stage_payload(payload, run_directory),
+        PayloadPathMode::OriginalPath => Ok(payload.clone()),
+    }
+}
+
+/// Copies one inspected payload into owner-only request state
+fn stage_payload(payload: &BinaryInspection, run_directory: &Path) -> Result<BinaryInspection> {
     let file_name = payload.path.file_name().ok_or_else(|| {
         Error::InvalidInput(format!(
             "payload path has no file name: {}",
