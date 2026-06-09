@@ -4,7 +4,7 @@ ProtonInformer is a Linux-native CLI for loading Windows PE DLLs into Wine and P
 
 It is built for Linux users who need a clean Proton/Wine-aware loader instead of running random Windows injector tools by hand inside a prefix. The Linux controller finds and validates the target, checks the payload, stages the request, launches the matching Windows helper inside the selected runtime, and confirms that the expected module was loaded.
 
-The design is inspired by System Informer-style module workflows and the classic `LoadLibrary` injector model used by projects such as `kubo/injector`, but ProtonInformer is built specifically around Linux, Wine, Proton, Steam prefixes, and reproducible helper packaging.
+The design is inspired by System Informer-style module workflows and the classic `LoadLibrary` injector model used by projects such as [`kubo/injector`](https://github.com/kubo/injector), but ProtonInformer is built specifically around Linux, Wine, Proton, Steam prefixes, and reproducible helper packaging.
 
 ## What it does
 
@@ -38,6 +38,8 @@ proton-informer-win32-helper.exe    32-bit Windows helper
 ```
 
 Users normally run `proton-informer`, not the helper executables directly.
+
+Download, verification, and command examples are available in the [usage guide](docs/usage.md).
 
 ## How it works
 
