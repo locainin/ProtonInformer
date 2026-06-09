@@ -1,0 +1,38 @@
+name: Helper artifacts
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows-helpers:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - i686-pc-windows-gnu
+          - x86_64-pc-windows-gnu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build helper
+        run: cargo build -p proton-informer-win-helper --target "${{ matrix.target }}" --release
+      - name: Package helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          source="target/${{ matrix.target }}/release/proton-informer-win-helper.exe"
+          if [[ "${{ matrix.target }}" == i686-* ]]; then
+            output="dist/proton-informer-win32-helper.exe"
+          else
+            output="dist/proton-informer-win-helper.exe"
+          fi
+          cp "$source" "$output"
+          sha256sum "$output" > "$output.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proton-informer-helper-${{ matrix.target }}
+          path: dist/
