@@ -71,8 +71,11 @@ pub fn query_modules(target: &ProcessInfo) -> Result<ModuleQueryResult> {
     })();
 
     // Module queries are diagnostic and do not retain request state
-    let _ = fs::remove_dir_all(&run_directory);
-    result
+    match (result, fs::remove_dir_all(&run_directory)) {
+        (Ok(result), Ok(())) => Ok(result),
+        (Ok(_), Err(source)) => Err(Error::io(&run_directory, source)),
+        (Err(error), _) => Err(error),
+    }
 }
 
 /// Validates correlation fields before exposing a typed module result.
