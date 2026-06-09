@@ -2,18 +2,31 @@ name: Helper artifacts
 
 on:
   push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   windows-helpers:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target:
-          - i686-pc-windows-gnu
-          - x86_64-pc-windows-gnu
+        include:
+          - target: i686-pc-windows-gnu
+            output: proton-informer-win32-helper.exe
+          - target: x86_64-pc-windows-gnu
+            output: proton-informer-win-helper.exe
     steps:
       - uses: actions/checkout@v4
+      - name: Install MinGW toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes binutils-mingw-w64 gcc-mingw-w64
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -25,14 +38,26 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           source="target/${{ matrix.target }}/release/proton-informer-win-helper.exe"
-          if [[ "${{ matrix.target }}" == i686-* ]]; then
-            output="dist/proton-informer-win32-helper.exe"
-          else
-            output="dist/proton-informer-win-helper.exe"
-          fi
+          output="dist/${{ matrix.output }}"
           cp "$source" "$output"
           sha256sum "$output" > "$output.sha256"
       - uses: actions/upload-artifact@v4
         with:
           name: proton-informer-helper-${{ matrix.target }}
           path: dist/
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: windows-helpers
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: proton-informer-helper-*
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
