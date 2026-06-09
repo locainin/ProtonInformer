@@ -74,8 +74,9 @@ pub fn run(
     let modules_after = platform_modules(process.windows_pid)?;
     let Some(loaded) = find_module(&modules_after, &locked.canonical_path) else {
         return if thread.exit_code_low32 == 0 {
-            Err(HelperFailure::LoadFailed(
-                "remote LoadLibraryW returned a zero low-32-bit result and the module was absent"
+            Err(HelperFailure::LoadLibraryRejected(
+                "LoadLibraryW returned null and the module was absent; likely causes are a missing \
+                 dependency, a dependency with the wrong architecture, or DllMain returning FALSE"
                     .into(),
             ))
         } else {
@@ -202,7 +203,7 @@ fn validate_pe_dll(
         _ => ProtocolArchitecture::Unknown,
     };
     if architecture != expected_architecture {
-        return Err(HelperFailure::Validation(format!(
+        return Err(HelperFailure::ArchitectureMismatch(format!(
             "payload architecture {architecture:?} does not match target {expected_architecture:?}"
         )));
     }

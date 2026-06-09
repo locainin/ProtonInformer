@@ -8,7 +8,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     GetFinalPathNameByHandleW, OPEN_EXISTING, VOLUME_NAME_DOS,
 };
 
-use super::common::{OwnedHandle, last_error, null_terminated_wide};
+use super::common::{OwnedHandle, last_error, last_error_code, null_terminated_wide};
 use crate::error::HelperFailure;
 
 /// Read-locked payload and the normalized Windows path represented by its handle.
@@ -45,6 +45,16 @@ pub fn lock_payload(windows_path: &str) -> Result<LockedPayload, HelperFailure> 
             ptr::null_mut(),
         )
     };
+    if handle.is_null() || handle == windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE {
+        let code = last_error_code();
+        return Err(HelperFailure::PayloadUnavailable {
+            code,
+            message: format!(
+                "payload path is not visible or readable inside the selected Wine prefix: \
+                 {windows_path} (Windows error {code})"
+            ),
+        });
+    }
     let handle = OwnedHandle::new(handle, "CreateFileW payload lock")?;
     let canonical_path = final_path_name(handle.raw())?;
     Ok(LockedPayload {

@@ -4,7 +4,9 @@ use std::ffi::{CString, c_void};
 use std::mem::{size_of, transmute};
 use std::ptr;
 
-use windows_sys::Win32::Foundation::{HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT};
+use windows_sys::Win32::Foundation::{
+    ERROR_INVALID_PARAMETER, HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
+};
 use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows_sys::Win32::System::Memory::{
@@ -16,7 +18,7 @@ use windows_sys::Win32::System::Threading::{
     WaitForSingleObject,
 };
 
-use super::common::{OwnedHandle, last_error, null_terminated_wide};
+use super::common::{OwnedHandle, last_error, last_error_code, null_terminated_wide};
 use super::modules::{ModuleAddress, module_addresses};
 use crate::error::HelperFailure;
 
@@ -155,6 +157,18 @@ fn open_load_process(windows_pid: u32) -> Result<OwnedHandle, HelperFailure> {
         PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_WRITE;
     // SAFETY: PID and access flags are plain values with no pointer preconditions
     let handle = unsafe { OpenProcess(access, 0, windows_pid) };
+    if handle.is_null() {
+        let code = last_error_code();
+        if code == ERROR_INVALID_PARAMETER {
+            return Err(HelperFailure::TargetNotFound(format!(
+                "Windows process {windows_pid} disappeared before loading"
+            )));
+        }
+        return Err(HelperFailure::Windows {
+            code,
+            operation: "OpenProcess load",
+        });
+    }
     OwnedHandle::new(handle, "OpenProcess load")
 }
 

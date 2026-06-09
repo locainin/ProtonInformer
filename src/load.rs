@@ -73,11 +73,14 @@ fn validate_response(plan: &LoadDryRunPlan, response: &HelperResponse) -> Result
         ));
     }
     if !response.ok {
-        let detail = response.error.as_ref().map_or_else(
-            || "helper returned failure without an error body".into(),
-            |error| format!("{}: {}", error.kind, error.message),
-        );
-        return Err(Error::HelperExecution(detail));
+        let error = response.error.as_ref().ok_or_else(|| {
+            Error::HelperExecution("helper returned failure without an error body".into())
+        })?;
+        return Err(Error::HelperRejected {
+            kind: error.kind.clone(),
+            message: error.message.clone(),
+            windows_error: error.windows_error,
+        });
     }
     match response.result.as_ref() {
         Some(HelperResult::LoadLibrary(result)) if result.module_verified => Ok(()),

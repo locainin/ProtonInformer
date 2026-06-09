@@ -50,7 +50,12 @@ pub(super) fn wide_string<const N: usize>(value: &[u16; N]) -> String {
 
 /// Captures the current Windows error immediately.
 pub(super) fn last_error(operation: &'static str) -> HelperFailure {
-    // SAFETY: GetLastError has no preconditions and is read immediately
-    let code = unsafe { GetLastError() };
+    let code = last_error_code();
     HelperFailure::Windows { code, operation }
+}
+
+/// Captures only the current Windows error code for specialized failures.
+pub(super) fn last_error_code() -> u32 {
+    // SAFETY: GetLastError has no preconditions and is read immediately
+    unsafe { GetLastError() }
 }

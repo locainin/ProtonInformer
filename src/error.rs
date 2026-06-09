@@ -39,6 +39,13 @@ pub enum Error {
     #[error("helper execution failed: {0}")]
     HelperExecution(String),
 
+    #[error("helper rejected the request ({kind}): {message}")]
+    HelperRejected {
+        kind: String,
+        message: String,
+        windows_error: Option<u32>,
+    },
+
     #[error("helper execution exceeded {timeout_ms} ms")]
     HelperTimeout { timeout_ms: u64 },
 
@@ -56,7 +63,7 @@ impl Error {
 
     /// Stable machine-facing category used by `--json` error responses.
     #[must_use]
-    pub const fn kind(&self) -> &'static str {
+    pub fn kind(&self) -> &'static str {
         match self {
             Self::Io { .. } => "io",
             Self::EmptyPayload(_) => "empty_payload",
@@ -68,6 +75,18 @@ impl Error {
             Self::PathConversion { .. } => "path_conversion",
             Self::InvalidInput(_) => "invalid_input",
             Self::HelperExecution(_) => "helper_execution",
+            Self::HelperRejected { kind, .. } => match kind.as_str() {
+                "architecture_mismatch" => "architecture_mismatch",
+                "invalid_windows_path" => "invalid_windows_path",
+                "load_library_rejected" => "load_library_rejected",
+                "load_timeout" => "load_timeout",
+                "module_conflict" => "module_conflict",
+                "module_verification_failed" => "module_verification_failed",
+                "payload_changed" => "payload_changed",
+                "payload_not_visible" => "payload_not_visible",
+                "target_not_found" => "target_not_found",
+                _ => "helper_rejected",
+            },
             Self::HelperTimeout { .. } => "helper_timeout",
             Self::Json(_) => "json",
         }

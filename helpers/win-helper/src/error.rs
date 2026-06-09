@@ -33,6 +33,9 @@ pub enum HelperFailure {
     /// Request failed semantic validation.
     #[error("invalid request: {0}")]
     Validation(String),
+    /// Payload and target processor architectures do not match.
+    #[error("{0}")]
+    ArchitectureMismatch(String),
     /// Windows API call failed.
     #[error("{operation} failed with Windows error {code}")]
     #[cfg(windows)]
@@ -48,7 +51,11 @@ pub enum HelperFailure {
     UnsupportedOperation(String),
     /// Remote loader returned failure without a transferable Windows error.
     #[error("{0}")]
+    #[cfg(windows)]
     LoadFailed(String),
+    /// `LoadLibraryW` rejected the DLL without exposing a remote last error.
+    #[error("{0}")]
+    LoadLibraryRejected(String),
     /// A different module with the requested basename is already loaded.
     #[error("{0}")]
     ModuleConflict(String),
@@ -61,6 +68,15 @@ pub enum HelperFailure {
     /// Windows payload path is invalid or cannot be canonicalized.
     #[error("{0}")]
     InvalidWindowsPath(String),
+    /// The payload path cannot be opened inside the selected Wine prefix.
+    #[error("{message}")]
+    #[cfg(windows)]
+    PayloadUnavailable {
+        /// Windows error captured from the failed path operation.
+        code: u32,
+        /// Actionable path diagnostic.
+        message: String,
+    },
     /// Remote loader did not finish before the request deadline.
     #[error(
         "remote load exceeded {timeout_ms} ms; remote allocation retained: \
@@ -99,15 +115,20 @@ impl HelperFailure {
             Self::TargetNotFound(_) => ("target_not_found", None),
             Self::Usage(_) => ("usage", None),
             Self::Validation(_) => ("invalid_request", None),
+            Self::ArchitectureMismatch(_) => ("architecture_mismatch", None),
             #[cfg(windows)]
             Self::Windows { code, .. } => ("windows_api", Some(*code)),
             #[cfg(not(windows))]
             Self::UnsupportedOperation(_) => ("unsupported_operation", None),
+            #[cfg(windows)]
             Self::LoadFailed(_) => ("load_failed", None),
+            Self::LoadLibraryRejected(_) => ("load_library_rejected", None),
             Self::ModuleConflict(_) => ("module_conflict", None),
             Self::ModuleVerificationFailed(_) => ("module_verification_failed", None),
             Self::PayloadChanged(_) => ("payload_changed", None),
             Self::InvalidWindowsPath(_) => ("invalid_windows_path", None),
+            #[cfg(windows)]
+            Self::PayloadUnavailable { code, .. } => ("payload_not_visible", Some(*code)),
             #[cfg(windows)]
             Self::LoadTimeout { .. } => ("load_timeout", None),
         };
