@@ -26,6 +26,13 @@ pub(super) struct Cli {
 /// Supported CLI operations.
 #[derive(Debug, Subcommand)]
 pub(super) enum Command {
+    /// Remove safe controller-managed run state.
+    Cleanup {
+        /// Remove only runs at least this old, using s, m, h, or d.
+        #[arg(long)]
+        older_than: Option<String>,
+    },
+
     /// Check local Steam, Wine, helper, process, and state readiness.
     Doctor {
         /// Wine or Proton process used for live helper diagnostics.
@@ -168,6 +175,9 @@ pub(super) enum Command {
         #[arg(long)]
         wine_only: bool,
     },
+
+    /// List safe controller-managed run state.
+    Runs,
 
     /// Discover games and existing Proton prefixes from Steam metadata.
     SteamGames,

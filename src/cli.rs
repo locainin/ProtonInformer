@@ -19,6 +19,7 @@ use crate::inject;
 use crate::install;
 use crate::load;
 use crate::process::{self, TargetKind};
+use crate::runs;
 use crate::steam;
 
 /// Parses process arguments, runs one command, and returns its exit status.
@@ -77,6 +78,9 @@ where
 /// Executes one fully parsed command.
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
+        Command::Cleanup { older_than } => {
+            run_cleanup(older_than.as_deref(), cli.json)?;
+        }
         Command::Doctor { pid } => run_doctor(pid, cli.json)?,
         Command::Inspect { payload } => run_inspect(&payload, cli.json)?,
         Command::Inject {
@@ -140,11 +144,35 @@ fn run(cli: Cli) -> Result<()> {
             target_arch,
         } => run_plan(&payload, pid, target_arch, cli.json)?,
         Command::Processes { wine_only } => run_processes(wine_only, cli.json)?,
+        Command::Runs => run_runs(cli.json)?,
         Command::SteamGames => run_steam_games(cli.json)?,
         Command::VerifyInstall { arch, pid } => run_verify_install(arch, pid, cli.json)?,
     }
 
     Ok(())
+}
+
+/// Lists safe managed run-state directories.
+fn run_runs(json: bool) -> Result<()> {
+    let report = runs::list()?;
+    if json {
+        output::print_json(&report)
+    } else {
+        output::print_runs(&report);
+        Ok(())
+    }
+}
+
+/// Removes all or age-filtered managed run-state directories.
+fn run_cleanup(older_than: Option<&str>, json: bool) -> Result<()> {
+    let threshold = older_than.map(runs::parse_age).transpose()?;
+    let report = runs::cleanup(threshold)?;
+    if json {
+        output::print_json(&report)
+    } else {
+        output::print_cleanup(&report);
+        Ok(())
+    }
 }
 
 /// Resolves one target and prints the helper's loaded-module inventory.

@@ -11,3 +11,4 @@ pub use model::{HelperInvocation, HelperRuntime, LoadDryRunPlan};
 pub use planning::plan_load_dry_run;
 pub use query::query_modules;
 pub use state::create_request_directory;
+pub(crate) use state::state_directory;

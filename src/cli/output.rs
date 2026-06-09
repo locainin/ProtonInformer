@@ -12,6 +12,7 @@ use crate::helper_runtime::LoadDryRunPlan;
 use crate::install::InstallVerification;
 use crate::load::LoadExecutionResult;
 use crate::process::ProcessInfo;
+use crate::runs::{CleanupReport, RunStateReport};
 use crate::steam::SteamDiscoveryReport;
 use proton_informer_helper_protocol::ModuleQueryResult;
 
@@ -192,6 +193,33 @@ pub(super) fn print_modules(result: &ModuleQueryResult) {
     println!("  Process:     {}", result.target.process_name);
     for module in &result.modules {
         println!("  {}  {}", module.module_name, module.windows_path);
+    }
+}
+
+/// Writes managed run-state directories and retained warnings.
+pub(super) fn print_runs(report: &RunStateReport) {
+    println!("Run State");
+    println!("  Root: {}", report.root.display());
+    for run in &report.runs {
+        println!(
+            "  {}  age={}s  {}",
+            run.request_id,
+            run.age_seconds,
+            run.path.display()
+        );
+    }
+    for warning in &report.warnings {
+        eprintln!("Warning: {warning}");
+    }
+}
+
+/// Writes one cleanup summary and every skipped-entry warning.
+pub(super) fn print_cleanup(report: &CleanupReport) {
+    println!("Run Cleanup");
+    println!("  Root:    {}", report.root.display());
+    println!("  Removed: {}", report.removed);
+    for warning in &report.warnings {
+        eprintln!("Warning: {warning}");
     }
 }
 

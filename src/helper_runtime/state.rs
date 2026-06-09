@@ -153,7 +153,7 @@ pub(super) fn write_private_json<T: Serialize>(path: &Path, value: &T) -> Result
 }
 
 /// Returns the state root without assuming one user's home path.
-fn state_directory() -> PathBuf {
+pub fn state_directory() -> PathBuf {
     env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
         .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))

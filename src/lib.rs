@@ -20,6 +20,7 @@ pub mod inject;
 pub mod install;
 pub mod load;
 pub mod process;
+pub mod runs;
 pub mod steam;
 pub mod types;
 pub mod wine;

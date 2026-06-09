@@ -12,6 +12,7 @@ fn top_level_help_lists_every_public_command() {
 
     assert!(output.status.success());
     for command in [
+        "cleanup",
         "doctor",
         "inject",
         "inspect",
@@ -20,6 +21,7 @@ fn top_level_help_lists_every_public_command() {
         "override-plan",
         "plan",
         "processes",
+        "runs",
         "steam-games",
         "verify-install",
     ] {
@@ -28,6 +30,20 @@ fn top_level_help_lists_every_public_command() {
             "top-level help should list {command}"
         );
     }
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn cleanup_help_explains_age_filter_format() {
+    let output = Command::new(env!("CARGO_BIN_EXE_proton-informer"))
+        .args(["cleanup", "--help"])
+        .output()
+        .expect("CLI should start");
+    let stdout = String::from_utf8(output.stdout).expect("help should be UTF-8");
+
+    assert!(output.status.success());
+    assert!(stdout.contains("--older-than"));
+    assert!(stdout.contains("s, m, h, or d"));
     assert!(output.stderr.is_empty());
 }
 
