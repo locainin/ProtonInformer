@@ -53,9 +53,14 @@ pub enum HelperFailure {
     #[error("{0}")]
     #[cfg(windows)]
     LoadFailed(String),
-    /// `LoadLibraryW` rejected the DLL without exposing a remote last error.
-    #[error("{0}")]
-    LoadLibraryRejected(String),
+    /// `LoadLibraryW` rejected the DLL and returned a target-side error.
+    #[error("{message}")]
+    LoadLibraryRejected {
+        /// Error captured in the target immediately after `LoadLibraryW`.
+        code: u32,
+        /// Actionable loader diagnostic.
+        message: String,
+    },
     /// A different module with the requested basename is already loaded.
     #[error("{0}")]
     ModuleConflict(String),
@@ -122,7 +127,7 @@ impl HelperFailure {
             Self::UnsupportedOperation(_) => ("unsupported_operation", None),
             #[cfg(windows)]
             Self::LoadFailed(_) => ("load_failed", None),
-            Self::LoadLibraryRejected(_) => ("load_library_rejected", None),
+            Self::LoadLibraryRejected { code, .. } => ("load_library_rejected", Some(*code)),
             Self::ModuleConflict(_) => ("module_conflict", None),
             Self::ModuleVerificationFailed(_) => ("module_verification_failed", None),
             Self::PayloadChanged(_) => ("payload_changed", None),

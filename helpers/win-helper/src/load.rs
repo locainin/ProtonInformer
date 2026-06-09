@@ -29,6 +29,8 @@ struct LockedPayload {
 /// Diagnostic result from the remote loader thread.
 struct LoadThreadOutcome {
     exit_code_low32: u32,
+    load_library_return: u64,
+    windows_error: u32,
 }
 
 /// Validates, loads, and verifies one DLL in the resolved target.
@@ -51,14 +53,26 @@ pub fn run(
     )?;
     let process = crate::process::resolve(target)?;
     let modules_before = platform_modules(process.windows_pid)?;
+    let dependency_warnings =
+        dependency_warnings(&locked.canonical_path, &process, &modules_before)?;
 
     // Repeated requests are idempotent when the exact payload path is loaded
     if let Some(module) = find_module(&modules_before, &locked.canonical_path) {
-        return Ok(result(&process, module.windows_path.clone(), None));
+        return Ok(result(
+            &process,
+            module.windows_path.clone(),
+            None,
+            dependency_warnings,
+        ));
     }
     if let Some(module) = find_basename_conflict(&modules_before, &locked.canonical_path) {
         if module_matches_payload(module, payload) {
-            return Ok(result(&process, module.windows_path.clone(), None));
+            return Ok(result(
+                &process,
+                module.windows_path.clone(),
+                None,
+                dependency_warnings,
+            ));
         }
         return Err(HelperFailure::ModuleConflict(format!(
             "{} is already loaded from {}, requested {}",
@@ -73,16 +87,21 @@ pub fn run(
     )?;
     let modules_after = platform_modules(process.windows_pid)?;
     let Some(loaded) = find_module(&modules_after, &locked.canonical_path) else {
-        return if thread.exit_code_low32 == 0 {
-            Err(HelperFailure::LoadLibraryRejected(
-                "LoadLibraryW returned null and the module was absent; likely causes are a missing \
-                 dependency, a dependency with the wrong architecture, or DllMain returning FALSE"
-                    .into(),
-            ))
+        return if thread.load_library_return == 0 {
+            Err(HelperFailure::LoadLibraryRejected {
+                code: thread.windows_error,
+                message: format!(
+                    "LoadLibraryW failed with Windows error {}; likely causes include a missing \
+                     dependency, a dependency with the wrong architecture, or DllMain returning \
+                     FALSE{}",
+                    thread.windows_error,
+                    dependency_failure_suffix(&dependency_warnings)
+                ),
+            })
         } else {
             Err(HelperFailure::ModuleVerificationFailed(format!(
-                "loader thread returned {:#010x}, but {} was not observed",
-                thread.exit_code_low32, locked.canonical_path
+                "LoadLibraryW returned {:#018x}, but {} was not observed",
+                thread.load_library_return, locked.canonical_path
             )))
         };
     };
@@ -91,7 +110,52 @@ pub fn run(
         &process,
         loaded.windows_path.clone(),
         Some(thread.exit_code_low32),
+        dependency_warnings,
     ))
+}
+
+/// Reports imported DLLs that are not visible through common loader paths.
+fn dependency_warnings(
+    payload_path: &str,
+    process: &proton_informer_helper_protocol::WindowsProcessInfo,
+    modules: &[WindowsModuleInfo],
+) -> Result<Vec<String>, HelperFailure> {
+    let payload = Path::new(payload_path);
+    let payload_directory = payload.parent();
+    let process_directory = process
+        .executable_windows_path
+        .as_deref()
+        .and_then(|path| Path::new(path).parent());
+    let imports = crate::imports::dll_names(payload)?;
+    let mut warnings = Vec::new();
+
+    for import in imports {
+        let normalized = import.to_ascii_lowercase();
+        if normalized.starts_with("api-ms-win-") || normalized.starts_with("ext-ms-win-") {
+            continue;
+        }
+        let loaded = modules
+            .iter()
+            .any(|module| module.module_name.eq_ignore_ascii_case(&import));
+        let adjacent = payload_directory.is_some_and(|directory| directory.join(&import).is_file())
+            || process_directory.is_some_and(|directory| directory.join(&import).is_file());
+        if !loaded && !adjacent && !platform_dependency_visible(&import)? {
+            warnings.push(format!(
+                "payload imports {import}, but no matching module or file was found in common \
+                 prefix search paths"
+            ));
+        }
+    }
+    Ok(warnings)
+}
+
+/// Adds bounded preflight findings to a load failure.
+fn dependency_failure_suffix(warnings: &[String]) -> String {
+    if warnings.is_empty() {
+        String::new()
+    } else {
+        format!("; dependency preflight: {}", warnings.join("; "))
+    }
 }
 
 /// Confirms an already-loaded same-name module is byte-identical.
@@ -319,14 +383,30 @@ fn result(
     process: &proton_informer_helper_protocol::WindowsProcessInfo,
     loaded_module_path: String,
     thread_exit_code_low32: Option<u32>,
+    dependency_warnings: Vec<String>,
 ) -> LoadLibraryResult {
     LoadLibraryResult {
+        dependency_warnings,
         loaded_module_path,
         module_verified: true,
         process_name: process.process_name.clone(),
         thread_exit_code_low32,
         windows_pid: process.windows_pid,
     }
+}
+
+/// Checks Wine's Windows dependency search path.
+#[cfg(windows)]
+fn platform_dependency_visible(name: &str) -> Result<bool, HelperFailure> {
+    crate::winapi::dependency_visible(name)
+}
+
+/// Refuses dependency search emulation from a host-native helper build.
+#[cfg(not(windows))]
+fn platform_dependency_visible(_name: &str) -> Result<bool, HelperFailure> {
+    Err(HelperFailure::UnsupportedOperation(
+        "dependency preflight requires a Windows helper build".into(),
+    ))
 }
 
 /// Locks and canonicalizes a payload through the Windows API.
@@ -349,6 +429,8 @@ fn platform_load_library(
     let result = crate::winapi::load_library(windows_pid, windows_path, timeout_ms)?;
     Ok(LoadThreadOutcome {
         exit_code_low32: result.exit_code_low32,
+        load_library_return: result.load_library_return,
+        windows_error: result.windows_error,
     })
 }
 

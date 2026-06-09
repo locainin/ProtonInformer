@@ -65,6 +65,8 @@ pub struct ModuleQueryResult {
 /// Successful load result.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoadLibraryResult {
+    /// Non-fatal dependency visibility findings collected before loading.
+    pub dependency_warnings: Vec<String>,
     /// Path reported by module verification.
     pub loaded_module_path: String,
     /// Whether the exact module path was observed after loading.
