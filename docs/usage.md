@@ -95,6 +95,20 @@ Disambiguate multiple game processes:
   --yes
 ```
 
+Wait for a named final process when a launcher starts before the game:
+
+```bash
+./proton-informer inject \
+  --app-id 311210 \
+  --process BlackOps3.exe \
+  --wait-for 30s \
+  --payload ./mod.dll \
+  --yes
+```
+
+`--wait-for` requires both `--app-id` and `--process`. It takes a bounded duration
+and never guesses which launcher child should receive the DLL.
+
 Select an exact Linux PID:
 
 ```bash
@@ -118,18 +132,21 @@ List owner-controlled request directories:
 
 ```bash
 ./proton-informer runs
+./proton-informer runs --prefix "$WINEPREFIX"
 ```
 
 Remove all validated run directories:
 
 ```bash
 ./proton-informer cleanup
+./proton-informer cleanup --prefix "$WINEPREFIX"
 ```
 
 Remove only older entries:
 
 ```bash
 ./proton-informer cleanup --older-than 7d
+./proton-informer cleanup --prefix "$WINEPREFIX" --older-than 7d
 ```
 
 Accepted age units are seconds (`s`), minutes (`m`), hours (`h`), and days (`d`).
