@@ -136,28 +136,7 @@ pub fn cleanup_in(root: &Path, older_than: Option<Duration>) -> Result<CleanupRe
 ///
 /// Returns an error for missing, zero, overflowing, or unknown units.
 pub fn parse_age(value: &str) -> Result<Duration> {
-    let value = value.trim();
-    let split = value
-        .find(|character: char| !character.is_ascii_digit())
-        .ok_or_else(|| Error::InvalidInput("age requires a unit: s, m, h, or d".into()))?;
-    let (amount, unit) = value.split_at(split);
-    let amount = amount
-        .parse::<u64>()
-        .map_err(|_| Error::InvalidInput("age must start with a positive integer".into()))?;
-    if amount == 0 {
-        return Err(Error::InvalidInput("age must be greater than zero".into()));
-    }
-    let multiplier = match unit {
-        "s" => 1,
-        "m" => 60,
-        "h" => 60 * 60,
-        "d" => 24 * 60 * 60,
-        _ => return Err(Error::InvalidInput("age unit must be s, m, h, or d".into())),
-    };
-    let seconds = amount
-        .checked_mul(multiplier)
-        .ok_or_else(|| Error::InvalidInput("age exceeds the supported range".into()))?;
-    Ok(Duration::from_secs(seconds))
+    crate::duration::parse_compact(value, "age")
 }
 
 /// Validates the owner-only managed runs root.

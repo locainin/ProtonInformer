@@ -11,6 +11,7 @@ pub mod binary;
 pub mod cli;
 pub mod decision;
 pub mod doctor;
+pub mod duration;
 pub mod error;
 pub mod helper;
 pub mod helper_executor;
