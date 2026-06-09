@@ -3,7 +3,7 @@
 use std::mem::{size_of, zeroed};
 
 use proton_informer_helper_protocol::{ProtocolArchitecture, WindowsProcessInfo};
-use windows_sys::Win32::Foundation::{ERROR_NO_MORE_FILES, GetLastError};
+use windows_sys::Win32::Foundation::{ERROR_NO_MORE_FILES, FILETIME, GetLastError};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
@@ -11,8 +11,8 @@ use windows_sys::Win32::System::SystemInformation::{
     IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_UNKNOWN,
 };
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcessId, IsWow64Process2, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
-    QueryFullProcessImageNameW,
+    GetCurrentProcessId, GetProcessTimes, IsWow64Process2, OpenProcess,
+    PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
 };
 
 use super::common::{OwnedHandle, wide_string};
@@ -49,9 +49,17 @@ pub fn processes() -> Result<Vec<WindowsProcessInfo>, HelperFailure> {
     let mut processes = Vec::new();
     loop {
         let pid = entry.th32ProcessID;
+        let details = process_details(pid);
         processes.push(WindowsProcessInfo {
-            architecture: process_architecture(pid),
-            executable_windows_path: process_path(pid),
+            architecture: details
+                .as_ref()
+                .map_or(ProtocolArchitecture::Unknown, |details| {
+                    details.architecture
+                }),
+            creation_time_100ns: details
+                .as_ref()
+                .and_then(|details| details.creation_time_100ns),
+            executable_windows_path: details.and_then(|details| details.path),
             process_name: wide_string(&entry.szExeFile),
             windows_pid: pid,
         });
@@ -72,9 +80,25 @@ pub fn processes() -> Result<Vec<WindowsProcessInfo>, HelperFailure> {
     Ok(processes)
 }
 
-/// Returns a process executable path when query access is available.
-fn process_path(windows_pid: u32) -> Option<String> {
+/// Best-effort identity fields collected through one process handle.
+struct ProcessDetails {
+    architecture: ProtocolArchitecture,
+    creation_time_100ns: Option<u64>,
+    path: Option<String>,
+}
+
+/// Opens one process once and collects all available identity evidence.
+fn process_details(windows_pid: u32) -> Option<ProcessDetails> {
     let process = open_query_process(windows_pid).ok()?;
+    Some(ProcessDetails {
+        architecture: process_architecture(&process),
+        creation_time_100ns: process_creation_time(&process),
+        path: process_path(&process),
+    })
+}
+
+/// Returns a process executable path when query access is available.
+fn process_path(process: &OwnedHandle) -> Option<String> {
     let mut buffer = vec![0_u16; 32_768];
     let mut length = u32::try_from(buffer.len()).ok()?;
     // SAFETY: buffer is writable for length UTF-16 code units and process is valid
@@ -88,10 +112,7 @@ fn process_path(windows_pid: u32) -> Option<String> {
 }
 
 /// Returns a process architecture when query access is available.
-fn process_architecture(windows_pid: u32) -> ProtocolArchitecture {
-    let Ok(process) = open_query_process(windows_pid) else {
-        return ProtocolArchitecture::Unknown;
-    };
+fn process_architecture(process: &OwnedHandle) -> ProtocolArchitecture {
     let mut process_machine = IMAGE_FILE_MACHINE_UNKNOWN;
     let mut native_machine = IMAGE_FILE_MACHINE_UNKNOWN;
     // SAFETY: both output pointers are valid and process has query access
@@ -110,6 +131,31 @@ fn process_architecture(windows_pid: u32) -> ProtocolArchitecture {
     } else {
         process_machine
     })
+}
+
+/// Returns the immutable process creation timestamp used to reject PID reuse.
+fn process_creation_time(process: &OwnedHandle) -> Option<u64> {
+    let mut creation = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let mut exit = creation;
+    let mut kernel = creation;
+    let mut user = creation;
+    // SAFETY: process is valid and every FILETIME output is writable
+    if unsafe {
+        GetProcessTimes(
+            process.raw(),
+            &raw mut creation,
+            &raw mut exit,
+            &raw mut kernel,
+            &raw mut user,
+        )
+    } == 0
+    {
+        return None;
+    }
+    Some((u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime))
 }
 
 /// Opens one process for non-mutating identity queries.

@@ -118,6 +118,7 @@ fn run_process(
 ) -> Result<HelperExecutionOutput> {
     let mut command = Command::new(&invocation.program);
     command
+        .env_clear()
         .args(&invocation.arguments)
         .envs(&invocation.environment)
         .stdin(Stdio::null())

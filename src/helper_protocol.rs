@@ -26,6 +26,7 @@ const HEX: &[u8; 16] = b"0123456789abcdef";
 pub fn load_request(
     payload: &BinaryInspection,
     target: &ProcessInfo,
+    windows_target: &proton_informer_helper_protocol::WindowsProcessInfo,
     timeout_ms: u64,
     request_id: String,
 ) -> Result<HelperRequest> {
@@ -66,11 +67,32 @@ pub fn load_request(
         request_id,
         schema_version: SCHEMA_VERSION,
         target: Some(HelperTarget {
+            expected_creation_time_100ns: windows_target.creation_time_100ns,
             expected_architecture: protocol_architecture(payload.architecture),
             expected_executable_windows_path: Some(expected_executable_windows_path),
             expected_process_name,
-            selector: TargetSelector::ByProcessNameAndExecutablePath,
+            selector: TargetSelector::ByWindowsPid(windows_target.windows_pid),
         }),
+    };
+    request
+        .validate()
+        .map_err(|error| Error::InvalidInput(error.to_string()))?;
+    Ok(request)
+}
+
+/// Builds a process-enumeration request used before selecting a Windows PID.
+///
+/// # Errors
+///
+/// Returns an error if the generated protocol request is invalid.
+pub fn query_processes_request(request_id: String) -> Result<HelperRequest> {
+    let request = HelperRequest {
+        operation: HelperOperation::QueryProcesses,
+        options: HelperOptions::default(),
+        payload: None,
+        request_id,
+        schema_version: SCHEMA_VERSION,
+        target: None,
     };
     request
         .validate()

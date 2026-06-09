@@ -17,6 +17,7 @@ fn load_request() -> HelperRequest {
         request_id: "request-123".into(),
         schema_version: SCHEMA_VERSION,
         target: Some(HelperTarget {
+            expected_creation_time_100ns: Some(123),
             expected_architecture: ProtocolArchitecture::X86_64,
             expected_executable_windows_path: Some(r"S:\common\Game\Game.exe".into()),
             expected_process_name: "Game.exe".into(),

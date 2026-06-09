@@ -11,7 +11,7 @@ use proton_informer::process::{
     ProcessInfo, TargetKind,
 };
 use proton_informer::types::Architecture;
-use proton_informer_helper_protocol::{ProtocolArchitecture, TargetSelector};
+use proton_informer_helper_protocol::{ProtocolArchitecture, TargetSelector, WindowsProcessInfo};
 use tempfile::tempdir;
 
 /// Builds a Wine target with enough trusted identity for helper planning.
@@ -40,6 +40,17 @@ fn target(prefix: PathBuf, executable: PathBuf) -> ProcessInfo {
     }
 }
 
+/// Builds one exact helper-side process identity.
+fn windows_target() -> WindowsProcessInfo {
+    WindowsProcessInfo {
+        architecture: ProtocolArchitecture::X86_64,
+        creation_time_100ns: Some(123),
+        executable_windows_path: Some(r"S:\game.exe".into()),
+        process_name: "game.exe".into(),
+        windows_pid: 316,
+    }
+}
+
 #[test]
 fn load_request_hashes_the_exact_payload_and_uses_guest_identity() {
     let directory = tempdir().expect("temporary directory");
@@ -58,8 +69,14 @@ fn load_request_hashes_the_exact_payload_and_uses_guest_identity() {
         path: payload_path,
         size_bytes: 3,
     };
-    let request = load_request(&payload, &target(prefix, game), 10_000, "request-1".into())
-        .expect("valid load request");
+    let request = load_request(
+        &payload,
+        &target(prefix, game),
+        &windows_target(),
+        10_000,
+        "request-1".into(),
+    )
+    .expect("valid load request");
     let target = request.target.expect("request target");
     let payload = request.payload.expect("request payload");
 
@@ -68,10 +85,8 @@ fn load_request_hashes_the_exact_payload_and_uses_guest_identity() {
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
     );
     assert_eq!(target.expected_process_name, "BlackOps3.exe");
-    assert_eq!(
-        target.selector,
-        TargetSelector::ByProcessNameAndExecutablePath
-    );
+    assert_eq!(target.selector, TargetSelector::ByWindowsPid(316));
+    assert_eq!(target.expected_creation_time_100ns, Some(123));
     assert_eq!(target.expected_architecture, ProtocolArchitecture::X86_64);
 }
 
@@ -93,8 +108,14 @@ fn load_request_rejects_a_payload_changed_after_inspection() {
         path: payload_path,
         size_bytes: 3,
     };
-    let error = load_request(&payload, &target(prefix, game), 10_000, "request-2".into())
-        .expect_err("size mismatch must fail");
+    let error = load_request(
+        &payload,
+        &target(prefix, game),
+        &windows_target(),
+        10_000,
+        "request-2".into(),
+    )
+    .expect_err("size mismatch must fail");
 
     assert!(error.to_string().contains("changed after inspection"));
 }
@@ -110,8 +131,14 @@ fn load_request_rejects_unknown_architecture() {
     };
     let mut wine_target = target(PathBuf::from("/prefix"), PathBuf::from("/game.exe"));
     wine_target.guest_executable = None;
-    let error = load_request(&payload, &wine_target, 10_000, "request-3".into())
-        .expect_err("unknown architecture must fail before path access");
+    let error = load_request(
+        &payload,
+        &wine_target,
+        &windows_target(),
+        10_000,
+        "request-3".into(),
+    )
+    .expect_err("unknown architecture must fail before path access");
 
     assert!(error.to_string().contains("architecture must be known"));
 }

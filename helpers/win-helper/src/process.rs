@@ -84,6 +84,9 @@ fn identity_matches(
         .process_name
         .eq_ignore_ascii_case(&target.expected_process_name)
         || process.architecture != target.expected_architecture
+        || target
+            .expected_creation_time_100ns
+            .is_some_and(|expected| process.creation_time_100ns != Some(expected))
     {
         return false;
     }

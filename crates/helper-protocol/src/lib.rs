@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Current helper protocol schema.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 /// Largest payload accepted by controller and helper validation.
 pub const MAX_PAYLOAD_SIZE_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest helper request document accepted from disk.
@@ -75,6 +75,8 @@ pub enum TargetSelector {
 /// Identity constraints for a Windows target.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelperTarget {
+    /// Optional Windows creation timestamp used to reject PID reuse.
+    pub expected_creation_time_100ns: Option<u64>,
     /// Required process architecture.
     pub expected_architecture: ProtocolArchitecture,
     /// Optional full Windows executable path.
@@ -221,6 +223,8 @@ pub struct SelfTestCheck {
 pub struct WindowsProcessInfo {
     /// Detected process architecture.
     pub architecture: ProtocolArchitecture,
+    /// Windows process creation timestamp in 100-nanosecond units.
+    pub creation_time_100ns: Option<u64>,
     /// Full executable path when readable.
     pub executable_windows_path: Option<String>,
     /// Process basename.

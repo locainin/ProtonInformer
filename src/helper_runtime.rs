@@ -7,7 +7,10 @@ use std::io::{Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
-use proton_informer_helper_protocol::HelperRequest;
+use proton_informer_helper_protocol::{
+    HelperOperation, HelperRequest, HelperResponse, HelperResult, SCHEMA_VERSION,
+    WindowsProcessInfo,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -128,10 +131,22 @@ pub fn plan_load_dry_run(
     let request_id = Uuid::new_v4().to_string();
     let run_directory = create_request_directory(prefix, &request_id)?;
     let result = (|| {
+        let windows_target = resolve_windows_target(
+            target,
+            payload.architecture,
+            prefix,
+            &helper_windows_path,
+            &run_directory,
+        )?;
         let staged_payload = stage_payload(payload, &run_directory)?;
         let staged_payload_host_path = staged_payload.path.clone();
-        let request =
-            helper_protocol::load_request(&staged_payload, target, timeout_ms, request_id)?;
+        let request = helper_protocol::load_request(
+            &staged_payload,
+            target,
+            &windows_target,
+            timeout_ms,
+            request_id,
+        )?;
         let request_host_path = run_directory.join("request.json");
         write_private_json(&request_host_path, &request)?;
         let request_windows_path = wine::unix_path_to_windows(prefix, &request_host_path)?;
@@ -157,6 +172,93 @@ pub fn plan_load_dry_run(
         let _ = fs::remove_dir_all(&run_directory);
     }
     result
+}
+
+/// Resolves the exact Windows PID before creating a mutating load request.
+fn resolve_windows_target(
+    target: &ProcessInfo,
+    architecture: Architecture,
+    prefix: &Path,
+    helper_windows_path: &str,
+    run_directory: &Path,
+) -> Result<WindowsProcessInfo> {
+    let request = helper_protocol::query_processes_request(Uuid::new_v4().to_string())?;
+    let request_path = run_directory.join("process-query.json");
+    write_private_json(&request_path, &request)?;
+    let request_windows_path = wine::unix_path_to_windows(prefix, &request_path)?;
+    let invocation = invocation(
+        select_runtime(target)?,
+        helper_windows_path,
+        vec!["--request-json".into(), request_windows_path],
+    )?;
+    let output = crate::helper_executor::execute(&invocation, 20_000)?;
+    let _ = fs::remove_file(&request_path);
+    if output.exit_code != Some(0) {
+        return Err(Error::HelperExecution(format!(
+            "process query exited {:?}: {}",
+            output.exit_code,
+            output.stderr.trim()
+        )));
+    }
+    let response: HelperResponse = serde_json::from_str(&output.stdout)?;
+    if response.schema_version != SCHEMA_VERSION
+        || response.request_id != request.request_id
+        || response.operation != HelperOperation::QueryProcesses
+        || !response.ok
+    {
+        return Err(Error::HelperExecution(
+            "helper process query returned an invalid response".into(),
+        ));
+    }
+    let HelperResult::QueryProcesses(result) = response
+        .result
+        .ok_or_else(|| Error::HelperExecution("process query returned no result".into()))?
+    else {
+        return Err(Error::HelperExecution(
+            "process query returned the wrong result type".into(),
+        ));
+    };
+    correlate_windows_process(target, architecture, prefix, result.processes)
+}
+
+/// Correlates helper process data with the controller's guest executable.
+fn correlate_windows_process(
+    target: &ProcessInfo,
+    architecture: Architecture,
+    prefix: &Path,
+    processes: Vec<WindowsProcessInfo>,
+) -> Result<WindowsProcessInfo> {
+    let expected = target
+        .guest_executable
+        .as_ref()
+        .ok_or_else(|| Error::InvalidInput("target guest executable is unknown".into()))?
+        .path
+        .canonicalize()
+        .map_err(|source| Error::io("target guest executable", source))?;
+    let expected_architecture = helper_protocol::protocol_architecture(architecture);
+    let mut matches: Vec<_> = processes
+        .into_iter()
+        .filter(|process| process.architecture == expected_architecture)
+        .filter(|process| {
+            process
+                .executable_windows_path
+                .as_deref()
+                .and_then(|path| wine::windows_path_to_unix(prefix, path).ok())
+                .and_then(|path| path.canonicalize().ok())
+                .is_some_and(|path| path == expected)
+        })
+        .collect();
+    match matches.len() {
+        1 => Ok(matches.remove(0)),
+        0 => Err(Error::HelperExecution(format!(
+            "target process disappeared or the helper could not correlate {}",
+            expected.display()
+        ))),
+        count => Err(Error::HelperExecution(format!(
+            "{count} Windows processes matched {}; use a more specific target",
+            expected.display()
+        ))),
+    }
 }
 
 /// Selects the exact compatibility runtime represented by process evidence.
@@ -245,7 +347,7 @@ fn invocation(
             proton_path,
             steam_client_path,
         } => {
-            let mut environment = BTreeMap::new();
+            let mut environment = base_environment()?;
             environment.insert("STEAM_COMPAT_DATA_PATH".into(), path_text(compatdata_dir)?);
             environment.insert(
                 "STEAM_COMPAT_CLIENT_INSTALL_PATH".into(),
@@ -263,7 +365,8 @@ fn invocation(
             prefix,
             wine_binary,
         } => {
-            let environment = BTreeMap::from([("WINEPREFIX".into(), path_text(prefix)?)]);
+            let mut environment = base_environment()?;
+            environment.insert("WINEPREFIX".into(), path_text(prefix)?);
             (wine_binary.clone(), environment, arguments)
         }
     };
@@ -273,6 +376,24 @@ fn invocation(
         program,
         runtime,
     })
+}
+
+/// Returns the minimum host environment required to launch Wine or Proton.
+fn base_environment() -> Result<BTreeMap<String, String>> {
+    let mut environment = BTreeMap::new();
+    let home = env::var_os("HOME").ok_or_else(|| Error::InvalidInput("HOME is not set".into()))?;
+    environment.insert(
+        "HOME".into(),
+        home.into_string()
+            .map_err(|_| Error::InvalidInput("HOME is not valid UTF-8".into()))?,
+    );
+    // Proton uses `/usr/bin/env` in its launcher, so retain only system command
+    // directories instead of inheriting user-controlled PATH entries
+    environment.insert(
+        "PATH".into(),
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".into(),
+    );
+    Ok(environment)
 }
 
 /// Copies one inspected payload into owner-only request state.
@@ -430,5 +551,5 @@ fn path_text(path: &Path) -> Result<String> {
 /// Returns whether the current helper implementation supports an architecture.
 #[must_use]
 pub const fn helper_architecture_supported(architecture: Architecture) -> bool {
-    matches!(architecture, Architecture::X86_64)
+    matches!(architecture, Architecture::X86 | Architecture::X86_64)
 }

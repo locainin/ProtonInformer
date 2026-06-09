@@ -97,3 +97,18 @@ fn executor_cleans_first_output_when_second_output_cannot_be_created() {
         b"occupied"
     );
 }
+
+#[test]
+fn executor_clears_parent_environment_before_adding_explicit_values() {
+    let env = helper::find_command("env").expect("env command");
+    let mut command = invocation(env, Vec::new());
+    command
+        .environment
+        .insert("PROTON_INFORMER_TEST".into(), "clean".into());
+
+    let output = execute(&command, 1_000).expect("successful command execution");
+
+    assert_eq!(output.stdout.trim(), "PROTON_INFORMER_TEST=clean");
+    assert!(!output.stdout.contains("HOME="));
+    assert!(!output.stdout.contains("CARGO"));
+}
