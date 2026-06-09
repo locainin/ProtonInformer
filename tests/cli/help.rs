@@ -43,6 +43,7 @@ fn cleanup_help_explains_age_filter_format() {
 
     assert!(output.status.success());
     assert!(stdout.contains("--older-than"));
+    assert!(stdout.contains("--prefix"));
     assert!(stdout.contains("s, m, h, or d"));
     assert!(output.stderr.is_empty());
 }

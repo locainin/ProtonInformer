@@ -31,6 +31,10 @@ pub(super) enum Command {
         /// Remove only runs at least this old, using s, m, h, or d.
         #[arg(long)]
         older_than: Option<String>,
+
+        /// Inspect the fallback state directory inside this Wine prefix.
+        #[arg(long)]
+        prefix: Option<PathBuf>,
     },
 
     /// Check local Steam, Wine, helper, process, and state readiness.
@@ -187,7 +191,11 @@ pub(super) enum Command {
     },
 
     /// List safe controller-managed run state.
-    Runs,
+    Runs {
+        /// Inspect the fallback state directory inside this Wine prefix.
+        #[arg(long)]
+        prefix: Option<PathBuf>,
+    },
 
     /// Discover games and existing Proton prefixes from Steam metadata.
     SteamGames,

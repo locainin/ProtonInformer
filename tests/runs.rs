@@ -4,7 +4,7 @@ use std::fs;
 use std::os::unix::fs::{PermissionsExt, symlink};
 use std::time::Duration;
 
-use proton_informer::runs::{cleanup_in, list_in, parse_age};
+use proton_informer::runs::{cleanup_for_prefix, cleanup_in, list_for_prefix, list_in, parse_age};
 use tempfile::tempdir;
 use uuid::Uuid;
 
@@ -60,4 +60,28 @@ fn compact_age_parser_rejects_ambiguous_or_zero_values() {
     assert!(parse_age("7").is_err());
     assert!(parse_age("0h").is_err());
     assert!(parse_age("1week").is_err());
+}
+
+#[test]
+fn prefix_commands_manage_the_request_fallback_root() {
+    let directory = tempdir().expect("temporary directory");
+    let prefix = directory.path().join("pfx");
+    let drive_c = prefix.join("drive_c");
+    let state_root = drive_c.join(".proton-informer");
+    let runs = state_root.join("runs");
+    fs::create_dir_all(&runs).expect("fallback runs directory");
+    fs::create_dir_all(prefix.join("dosdevices")).expect("dosdevices directory");
+    fs::set_permissions(&runs, fs::Permissions::from_mode(0o700)).expect("private runs directory");
+    symlink("../drive_c", prefix.join("dosdevices/c:")).expect("C drive mapping");
+    let run = runs.join(Uuid::new_v4().to_string());
+    fs::create_dir(&run).expect("fallback run");
+    fs::set_permissions(&run, fs::Permissions::from_mode(0o700)).expect("private fallback run");
+
+    let listed = list_for_prefix(&prefix).expect("prefix listing");
+    assert_eq!(listed.root, state_root);
+    assert_eq!(listed.runs.len(), 1);
+
+    let cleaned = cleanup_for_prefix(&prefix, None).expect("prefix cleanup");
+    assert_eq!(cleaned.removed, 1);
+    assert!(!run.exists());
 }

@@ -52,6 +52,16 @@ pub fn list() -> Result<RunStateReport> {
     list_in(&crate::helper_runtime::state_directory())
 }
 
+/// Lists fallback run state stored inside one Wine prefix.
+///
+/// # Errors
+///
+/// Returns an error when the prefix has no usable C: mapping or its managed
+/// state cannot be inspected safely.
+pub fn list_for_prefix(prefix: &Path) -> Result<RunStateReport> {
+    list_in(&prefix_state_directory(prefix)?)
+}
+
 /// Lists run state under one explicit root.
 ///
 /// This boundary supports deterministic tests and administrative callers.
@@ -97,6 +107,16 @@ pub fn cleanup(older_than: Option<Duration>) -> Result<CleanupReport> {
     cleanup_in(&crate::helper_runtime::state_directory(), older_than)
 }
 
+/// Removes fallback run state stored inside one Wine prefix.
+///
+/// # Errors
+///
+/// Returns an error when the prefix has no usable C: mapping or validated run
+/// state cannot be deleted.
+pub fn cleanup_for_prefix(prefix: &Path, older_than: Option<Duration>) -> Result<CleanupReport> {
+    cleanup_in(&prefix_state_directory(prefix)?, older_than)
+}
+
 /// Removes safe managed runs under one explicit root.
 ///
 /// # Errors
@@ -137,6 +157,20 @@ pub fn cleanup_in(root: &Path, older_than: Option<Duration>) -> Result<CleanupRe
 /// Returns an error for missing, zero, overflowing, or unknown units.
 pub fn parse_age(value: &str) -> Result<Duration> {
     crate::duration::parse_compact(value, "age")
+}
+
+/// Resolves the same prefix-local state root used by request planning.
+fn prefix_state_directory(prefix: &Path) -> Result<PathBuf> {
+    let c_drive = crate::wine::drive_mappings(prefix)?
+        .into_iter()
+        .find_map(|(drive, root)| (drive == 'c').then_some(root))
+        .ok_or_else(|| {
+            Error::InvalidInput(format!(
+                "Wine prefix has no configured C: drive: {}",
+                prefix.display()
+            ))
+        })?;
+    Ok(c_drive.join(".proton-informer"))
 }
 
 /// Validates the owner-only managed runs root.

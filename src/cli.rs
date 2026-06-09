@@ -78,8 +78,8 @@ where
 /// Executes one fully parsed command.
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
-        Command::Cleanup { older_than } => {
-            run_cleanup(older_than.as_deref(), cli.json)?;
+        Command::Cleanup { older_than, prefix } => {
+            run_cleanup(older_than.as_deref(), prefix.as_deref(), cli.json)?;
         }
         Command::Doctor { pid } => run_doctor(pid, cli.json)?,
         Command::Inspect { payload } => run_inspect(&payload, cli.json)?,
@@ -149,7 +149,7 @@ fn run(cli: Cli) -> Result<()> {
             target_arch,
         } => run_plan(&payload, pid, target_arch, cli.json)?,
         Command::Processes { wine_only } => run_processes(wine_only, cli.json)?,
-        Command::Runs => run_runs(cli.json)?,
+        Command::Runs { prefix } => run_runs(prefix.as_deref(), cli.json)?,
         Command::SteamGames => run_steam_games(cli.json)?,
         Command::VerifyInstall { arch, pid } => run_verify_install(arch, pid, cli.json)?,
     }
@@ -158,8 +158,8 @@ fn run(cli: Cli) -> Result<()> {
 }
 
 /// Lists safe managed run-state directories.
-fn run_runs(json: bool) -> Result<()> {
-    let report = runs::list()?;
+fn run_runs(prefix: Option<&std::path::Path>, json: bool) -> Result<()> {
+    let report = prefix.map_or_else(runs::list, runs::list_for_prefix)?;
     if json {
         output::print_json(&report)
     } else {
@@ -169,9 +169,16 @@ fn run_runs(json: bool) -> Result<()> {
 }
 
 /// Removes all or age-filtered managed run-state directories.
-fn run_cleanup(older_than: Option<&str>, json: bool) -> Result<()> {
+fn run_cleanup(
+    older_than: Option<&str>,
+    prefix: Option<&std::path::Path>,
+    json: bool,
+) -> Result<()> {
     let threshold = older_than.map(runs::parse_age).transpose()?;
-    let report = runs::cleanup(threshold)?;
+    let report = prefix.map_or_else(
+        || runs::cleanup(threshold),
+        |prefix| runs::cleanup_for_prefix(prefix, threshold),
+    )?;
     if json {
         output::print_json(&report)
     } else {
