@@ -117,6 +117,8 @@ jobs:
           test -n "$archive_root"
           "$archive_root/proton-informer" --version
           "$archive_root/proton-informer" --help
+          "$archive_root/proton-informer" verify-install --arch x86-64
+          "$archive_root/proton-informer" verify-install --arch x86
       - uses: actions/upload-artifact@v4
         with:
           name: proton-informer-linux-x86_64
