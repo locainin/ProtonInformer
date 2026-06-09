@@ -89,8 +89,11 @@ pub fn verify_for_target(target: &ProcessInfo) -> Result<InstallVerification> {
         .guest_architecture
         .ok_or_else(|| Error::InvalidInput("target guest architecture is unknown".into()))?;
     let mut verification = verify_static(architecture)?;
-    let invocation =
-        crate::helper_runtime::diagnostic_invocation(target, architecture, "--version-json")?;
+    let invocation = crate::helper_runtime::diagnostic_invocation_with_helper(
+        target,
+        &verification.helper_path,
+        "--version-json",
+    )?;
     let output = crate::helper_executor::execute(&invocation, 10_000)?;
     if output.exit_code != Some(0) {
         return Err(Error::HelperExecution(format!(

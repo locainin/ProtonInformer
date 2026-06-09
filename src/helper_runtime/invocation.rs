@@ -23,19 +23,33 @@ pub fn diagnostic_invocation(
     architecture: Architecture,
     flag: &str,
 ) -> Result<HelperInvocation> {
+    let helper_path = helper::find_wine_helper(architecture).ok_or_else(|| {
+        Error::InvalidInput(format!("no {architecture} Windows helper is installed"))
+    })?;
+    diagnostic_invocation_with_helper(target, &helper_path, flag)
+}
+
+/// Builds a diagnostic invocation for one already verified helper path.
+pub(super) fn diagnostic_invocation_with_helper(
+    target: &ProcessInfo,
+    helper_path: &Path,
+    flag: &str,
+) -> Result<HelperInvocation> {
     if !matches!(flag, "--version-json" | "--self-test-json") {
         return Err(Error::InvalidInput(
             "unsupported helper diagnostic flag".into(),
         ));
     }
-    let helper_path = helper::find_wine_helper(architecture).ok_or_else(|| {
-        Error::InvalidInput(format!("no {architecture} Windows helper is installed"))
-    })?;
+    if !helper_path.is_absolute() {
+        return Err(Error::InvalidInput(
+            "verified helper path must be absolute".into(),
+        ));
+    }
     let prefix = target
         .wine_prefix
         .as_deref()
         .ok_or_else(|| Error::InvalidInput("target Wine prefix is unknown".into()))?;
-    let helper_windows_path = wine::unix_path_to_windows(prefix, &helper_path)?;
+    let helper_windows_path = wine::unix_path_to_windows(prefix, helper_path)?;
     let runtime = select_runtime(target)?;
     invocation(runtime, &helper_windows_path, vec![flag.into()])
 }
