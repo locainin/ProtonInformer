@@ -163,19 +163,38 @@ impl RemoteLoader {
         match unsafe { WaitForSingleObject(thread.raw(), timeout) } {
             WAIT_OBJECT_0 => self.completed_result(process, &thread),
             WAIT_TIMEOUT => {
-                self.path.retain();
-                self.context.retain();
-                self.code.retain();
+                // The thread may still read every remote allocation
+                self.retain_all();
                 Err(HelperFailure::LoadTimeout {
                     timeout_ms,
                     remote_allocation_retained: true,
                 })
             }
-            WAIT_FAILED => Err(last_error("WaitForSingleObject")),
-            status => Err(HelperFailure::LoadFailed(format!(
-                "WaitForSingleObject returned unexpected status {status}"
-            ))),
+            WAIT_FAILED => {
+                let code = last_error_code();
+                // A failed wait does not prove that the remote thread stopped
+                self.retain_all();
+                Err(HelperFailure::Windows {
+                    code,
+                    operation: "WaitForSingleObject; remote allocations retained",
+                })
+            }
+            status => {
+                // Unknown wait states also leave thread completion uncertain
+                self.retain_all();
+                Err(HelperFailure::LoadFailed(format!(
+                    "WaitForSingleObject returned unexpected status {status}; remote allocations \
+                     retained"
+                )))
+            }
         }
+    }
+
+    /// Keeps every allocation alive when remote thread completion is unknown.
+    fn retain_all(self) {
+        self.path.retain();
+        self.context.retain();
+        self.code.retain();
     }
 
     /// Reads one finished thread and the result block it wrote.
