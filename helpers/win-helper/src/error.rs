@@ -114,6 +114,7 @@ impl HelperFailure {
     }
 
     /// Converts the failure into the shared response model.
+    #[must_use]
     pub fn to_protocol_error(&self) -> HelperError {
         let (kind, windows_error) = match self {
             Self::AmbiguousTarget(_) => ("ambiguous_target", None),

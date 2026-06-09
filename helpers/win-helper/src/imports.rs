@@ -21,6 +21,11 @@ struct Section {
 }
 
 /// Returns imported DLL basenames without loading the whole payload into RAM.
+///
+/// # Errors
+///
+/// Returns an error when the PE headers, section mappings, descriptors, or
+/// imported names are malformed or unreadable.
 pub fn dll_names(path: &Path) -> Result<Vec<String>, HelperFailure> {
     let mut file = File::open(path)
         .map_err(|source| HelperFailure::io("unable to open PE imports", source))?;
