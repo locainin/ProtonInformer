@@ -1,4 +1,4 @@
-//! Controller-side execution and validation of helper load responses.
+//! Controller-side execution and validation of helper load responses
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -12,25 +12,25 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
 use crate::helper_executor;
-use crate::helper_runtime::LoadDryRunPlan;
+use crate::helper_runtime::{LoadDryRunPlan, parse_helper_response};
 
 const HELPER_STARTUP_GRACE_MS: u64 = 10_000;
 
-/// Verified helper response and persisted audit artifact.
+/// Verified helper response and persisted audit artifact
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoadExecutionResult {
-    /// Typed helper response.
+    /// Typed helper response
     pub response: HelperResponse,
-    /// Owner-only response JSON retained beside the request.
+    /// Owner-only response JSON retained beside the request
     pub response_host_path: PathBuf,
 }
 
-/// Executes one prepared load plan and validates its correlated response.
+/// Executes one prepared load plan and validates its correlated response
 ///
 /// # Errors
 ///
 /// Returns an error for process failure, malformed or mismatched JSON, helper
-/// rejection, missing module verification, or audit-file write failure.
+/// rejection, missing module verification, or audit-file write failure
 pub fn execute(plan: &LoadDryRunPlan, keep_run_files: bool) -> Result<LoadExecutionResult> {
     let execution_timeout = plan
         .request
@@ -51,7 +51,7 @@ pub fn execute(plan: &LoadDryRunPlan, keep_run_files: bool) -> Result<LoadExecut
             output.stderr.trim()
         )));
     }
-    let response: HelperResponse = serde_json::from_str(&output.stdout)?;
+    let response = parse_helper_response(&output)?;
     validate_response(plan, &response)?;
 
     let response_host_path = plan.run_directory.join("response.json");
@@ -62,7 +62,7 @@ pub fn execute(plan: &LoadDryRunPlan, keep_run_files: bool) -> Result<LoadExecut
     })
 }
 
-/// Rejects stale, unrelated, unsuccessful, or unverified helper responses.
+/// Rejects stale, unrelated, unsuccessful, or unverified helper responses
 fn validate_response(plan: &LoadDryRunPlan, response: &HelperResponse) -> Result<()> {
     if response.schema_version != SCHEMA_VERSION
         || response.request_id != plan.request.request_id
@@ -93,7 +93,7 @@ fn validate_response(plan: &LoadDryRunPlan, response: &HelperResponse) -> Result
     }
 }
 
-/// Persists one owner-only response without replacing existing audit data.
+/// Persists one owner-only response without replacing existing audit data
 fn write_private_json<T: Serialize>(path: &std::path::Path, value: &T) -> Result<()> {
     let bytes = serde_json::to_vec_pretty(value)?;
     let mut file = OpenOptions::new()

@@ -1,10 +1,10 @@
-//! Dry-run planning and exact Windows process correlation.
+//! Dry-run planning and exact Windows process correlation
 
 use std::fs;
 use std::path::Path;
 
 use proton_informer_helper_protocol::{
-    HelperOperation, HelperResponse, HelperResult, SCHEMA_VERSION, WindowsProcessInfo,
+    HelperOperation, HelperResult, SCHEMA_VERSION, WindowsProcessInfo,
 };
 use uuid::Uuid;
 
@@ -20,12 +20,12 @@ use super::invocation::{invocation, select_runtime};
 use super::model::{LoadDryRunPlan, PayloadPathMode};
 use super::state::{create_request_directory, prepare_payload_for_request, write_private_json};
 
-/// Creates secure request artifacts and a non-executing helper invocation.
+/// Creates secure request artifacts and a non-executing helper invocation
 ///
 /// # Errors
 ///
 /// Returns an error when helper discovery, runtime identity, path conversion,
-/// request construction, or secure file creation fails.
+/// request construction, or secure file creation fails
 pub fn plan_load_dry_run(
     payload: &BinaryInspection,
     target: &ProcessInfo,
@@ -87,7 +87,7 @@ pub fn plan_load_dry_run(
     result
 }
 
-/// Resolves the exact Windows PID before creating a mutating load request.
+/// Resolves the exact Windows PID before creating a mutating load request
 pub(super) fn resolve_windows_target(
     target: &ProcessInfo,
     architecture: Architecture,
@@ -113,7 +113,7 @@ pub(super) fn resolve_windows_target(
             output.stderr.trim()
         )));
     }
-    let response: HelperResponse = serde_json::from_str(&output.stdout)?;
+    let response = super::response::parse_helper_response(&output)?;
     if response.schema_version != SCHEMA_VERSION
         || response.request_id != request.request_id
         || response.operation != HelperOperation::QueryProcesses
@@ -134,7 +134,7 @@ pub(super) fn resolve_windows_target(
     correlate_windows_process(target, architecture, prefix, result.processes)
 }
 
-/// Correlates helper process data with the controller's guest executable.
+/// Correlates helper process data with the controller's guest executable
 fn correlate_windows_process(
     target: &ProcessInfo,
     architecture: Architecture,

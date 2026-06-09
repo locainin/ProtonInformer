@@ -1,4 +1,4 @@
-//! Exact helper-backed module enumeration for one selected Wine process.
+//! Exact helper-backed module enumeration for one selected Wine process
 
 use std::fs;
 
@@ -17,12 +17,12 @@ use super::invocation::{invocation, select_runtime};
 use super::planning::resolve_windows_target;
 use super::state::{create_request_directory, write_private_json};
 
-/// Resolves one exact Windows process and returns every loaded module.
+/// Resolves one exact Windows process and returns every loaded module
 ///
 /// # Errors
 ///
 /// Returns an error when runtime identity, helper discovery, process
-/// correlation, request execution, or response validation fails.
+/// correlation, request execution, or response validation fails
 pub fn query_modules(target: &ProcessInfo) -> Result<ModuleQueryResult> {
     let architecture = target
         .guest_architecture
@@ -66,7 +66,7 @@ pub fn query_modules(target: &ProcessInfo) -> Result<ModuleQueryResult> {
                 output.stderr.trim()
             )));
         }
-        let response: HelperResponse = serde_json::from_str(&output.stdout)?;
+        let response = super::response::parse_helper_response(&output)?;
         validate_response(&request.request_id, response)
     })();
 
@@ -76,7 +76,7 @@ pub fn query_modules(target: &ProcessInfo) -> Result<ModuleQueryResult> {
     result
 }
 
-/// Validates correlation fields before exposing a typed module result.
+/// Validates correlation fields before exposing a typed module result
 fn validate_response(request_id: &str, response: HelperResponse) -> Result<ModuleQueryResult> {
     if response.schema_version != SCHEMA_VERSION
         || response.request_id != request_id
