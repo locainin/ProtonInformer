@@ -1,0 +1,120 @@
+//! Command-line argument definitions.
+
+use std::path::PathBuf;
+
+use clap::{Parser, Subcommand};
+
+use crate::types::Architecture;
+
+/// Parsed top-level command-line input.
+#[derive(Debug, Parser)]
+#[command(
+    name = "proton-informer",
+    version,
+    about = "Inspect and plan safe Proton, Wine, and native Linux mod loading"
+)]
+pub(super) struct Cli {
+    /// Emit machine-readable success and error output.
+    #[arg(long, global = true)]
+    pub(super) json: bool,
+
+    /// Operation selected by the caller.
+    #[command(subcommand)]
+    pub(super) command: Command,
+}
+
+/// Supported CLI operations.
+#[derive(Debug, Subcommand)]
+pub(super) enum Command {
+    /// Check local Steam, Wine, helper, process, and state readiness.
+    Doctor {
+        /// Wine or Proton process used for live helper diagnostics.
+        #[arg(long)]
+        pid: Option<u32>,
+    },
+
+    /// Inspect a payload from its binary headers.
+    Inspect {
+        /// Payload file to inspect.
+        payload: PathBuf,
+    },
+
+    /// Prepare or execute a helper-backed load for a running Wine process.
+    Load {
+        /// Payload DLL to validate and load.
+        #[arg(long)]
+        payload: PathBuf,
+
+        /// Target Linux process identifier used to discover the Wine runtime.
+        #[arg(long)]
+        pid: u32,
+
+        /// Explicit guest architecture when process inspection cannot prove it.
+        #[arg(long, value_enum)]
+        target_arch: Option<Architecture>,
+
+        /// Generate request artifacts and print the invocation without running it.
+        #[arg(long, required_unless_present = "yes", conflicts_with = "yes")]
+        dry_run: bool,
+
+        /// Execute the validated helper request for real.
+        #[arg(long, required_unless_present = "dry_run", conflicts_with = "dry_run")]
+        yes: bool,
+
+        /// Retain bounded helper stdout and stderr in the private run directory.
+        #[arg(long)]
+        keep_run_files: bool,
+
+        /// Maximum helper operation time in milliseconds.
+        #[arg(
+            long,
+            default_value_t = 10_000,
+            value_parser = clap::value_parser!(u64).range(1..=300_000)
+        )]
+        timeout_ms: u64,
+    },
+
+    /// Plan a startup DLL override for an app or explicit Wine prefix.
+    OverridePlan {
+        /// Payload DLL to validate.
+        #[arg(long)]
+        payload: PathBuf,
+
+        /// DLL base name used by `WINEDLLOVERRIDES`.
+        #[arg(long)]
+        dll_name: String,
+
+        /// Steam application identifier.
+        #[arg(long, required_unless_present = "prefix", conflicts_with = "prefix")]
+        app_id: Option<u32>,
+
+        /// Existing Wine prefix.
+        #[arg(long, required_unless_present = "app_id", conflicts_with = "app_id")]
+        prefix: Option<PathBuf>,
+    },
+
+    /// Validate a payload and select a backend for a running process.
+    Plan {
+        /// Payload DLL or shared object.
+        #[arg(long)]
+        payload: PathBuf,
+
+        /// Target process identifier.
+        #[arg(long)]
+        pid: u32,
+
+        /// Explicit guest architecture when process inspection cannot prove it.
+        #[arg(long, value_enum)]
+        target_arch: Option<Architecture>,
+    },
+
+    /// List readable Linux, Wine, and Proton processes.
+    Processes {
+        /// Show only targets supported by the Wine backend.
+        #[arg(long)]
+        wine_only: bool,
+    },
+
+    /// Discover games and existing Proton prefixes from Steam metadata.
+    SteamGames,
+}
