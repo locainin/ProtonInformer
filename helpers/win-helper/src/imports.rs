@@ -17,7 +17,12 @@ struct Section {
     raw_offset: u32,
     raw_size: u32,
     virtual_address: u32,
-    virtual_size: u32,
+}
+
+/// File-backed bytes available from one mapped RVA.
+struct FileRegion {
+    available: u32,
+    offset: u32,
 }
 
 /// Returns imported DLL basenames without loading the whole payload into RAM.
@@ -91,8 +96,13 @@ pub fn dll_names(path: &Path) -> Result<Vec<String>, HelperFailure> {
     file.seek(SeekFrom::Start(section_offset))
         .map_err(|source| HelperFailure::io("unable to seek to section table", source))?;
     let sections = read_sections(&mut file, section_count)?;
-    let import_offset = rva_to_offset(import_rva, &sections)?;
-    file.seek(SeekFrom::Start(u64::from(import_offset)))
+    let import_region = rva_to_file_region(import_rva, &sections)?;
+    if import_size > import_region.available {
+        return Err(HelperFailure::Validation(
+            "PE import directory exceeds file-backed section data".into(),
+        ));
+    }
+    file.seek(SeekFrom::Start(u64::from(import_region.offset)))
         .map_err(|source| HelperFailure::io("unable to seek to import table", source))?;
 
     let descriptor_limit = usize::try_from(import_size)
@@ -115,10 +125,10 @@ pub fn dll_names(path: &Path) -> Result<Vec<String>, HelperFailure> {
 
     let mut imports = Vec::with_capacity(descriptors.len());
     for name_rva in descriptors {
-        let name_offset = rva_to_offset(name_rva, &sections)?;
-        file.seek(SeekFrom::Start(u64::from(name_offset)))
+        let name_region = rva_to_file_region(name_rva, &sections)?;
+        file.seek(SeekFrom::Start(u64::from(name_region.offset)))
             .map_err(|source| HelperFailure::io("unable to seek to import name", source))?;
-        imports.push(read_c_string(&mut file)?);
+        imports.push(read_c_string(&mut file, name_region.available)?);
     }
     imports.sort_unstable_by_key(|name| name.to_ascii_lowercase());
     imports.dedup_by(|left, right| left.eq_ignore_ascii_case(right));
@@ -133,11 +143,6 @@ fn read_sections(file: &mut File, count: usize) -> Result<Vec<Section>, HelperFa
         file.read_exact(&mut header)
             .map_err(|source| HelperFailure::io("unable to read section header", source))?;
         sections.push(Section {
-            virtual_size: u32::from_le_bytes(
-                header[8..12]
-                    .try_into()
-                    .map_err(|_| HelperFailure::Validation("invalid section header".into()))?,
-            ),
             virtual_address: u32::from_le_bytes(
                 header[12..16]
                     .try_into()
@@ -158,31 +163,35 @@ fn read_sections(file: &mut File, count: usize) -> Result<Vec<Section>, HelperFa
     Ok(sections)
 }
 
-/// Converts one image-relative address into a checked file offset.
-fn rva_to_offset(rva: u32, sections: &[Section]) -> Result<u32, HelperFailure> {
+/// Converts one image-relative address into checked file-backed section bytes.
+fn rva_to_file_region(rva: u32, sections: &[Section]) -> Result<FileRegion, HelperFailure> {
     sections
         .iter()
         .find_map(|section| {
-            let span = section.virtual_size.max(section.raw_size);
-            let end = section.virtual_address.checked_add(span)?;
+            let end = section.virtual_address.checked_add(section.raw_size)?;
             if rva < section.virtual_address || rva >= end {
                 return None;
             }
-            section
-                .raw_offset
-                .checked_add(rva - section.virtual_address)
+            let relative = rva - section.virtual_address;
+            Some(FileRegion {
+                available: section.raw_size - relative,
+                offset: section.raw_offset.checked_add(relative)?,
+            })
         })
         .ok_or_else(|| {
             HelperFailure::Validation(format!(
-                "PE import RVA {rva:#010x} is outside file-backed sections"
+                "PE import RVA {rva:#010x} is outside raw file-backed section data"
             ))
         })
 }
 
 /// Reads one bounded ASCII import name.
-fn read_c_string(file: &mut File) -> Result<String, HelperFailure> {
+fn read_c_string(file: &mut File, available: u32) -> Result<String, HelperFailure> {
     let mut bytes = Vec::with_capacity(32);
-    for _ in 0..MAX_IMPORT_NAME_BYTES {
+    let limit = usize::try_from(available)
+        .unwrap_or(usize::MAX)
+        .min(MAX_IMPORT_NAME_BYTES);
+    for _ in 0..limit {
         let mut byte = [0_u8; 1];
         file.read_exact(&mut byte)
             .map_err(|source| HelperFailure::io("unable to read import name", source))?;
@@ -197,6 +206,11 @@ fn read_c_string(file: &mut File) -> Result<String, HelperFailure> {
             ));
         }
         bytes.push(byte[0]);
+    }
+    if limit < MAX_IMPORT_NAME_BYTES {
+        return Err(HelperFailure::Validation(
+            "import name exceeds file-backed section data".into(),
+        ));
     }
     Err(HelperFailure::Validation(
         "import name exceeds the 260-byte limit".into(),
