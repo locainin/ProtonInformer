@@ -16,6 +16,11 @@ use self::platform::{load_library, lock_payload, modules};
 use crate::error::HelperFailure;
 
 /// Validates, loads, and verifies one DLL in the resolved target.
+///
+/// # Errors
+///
+/// Returns an error when payload validation, process identity checks, remote
+/// loading, or final module verification fails.
 pub fn run(
     target: &HelperTarget,
     payload: &HelperPayload,
@@ -36,7 +41,7 @@ pub fn run(
     let process = crate::process::resolve(target)?;
     let modules_before = modules(process.windows_pid)?;
     let dependency_warnings =
-        dependency_warnings(locked.canonical_path(), &process, &modules_before)?;
+        advisory_dependency_warnings(locked.canonical_path(), &process, &modules_before);
 
     // Repeated requests are idempotent when the exact payload path is loaded
     if let Some(module) = find_module(&modules_before, locked.canonical_path()) {
@@ -110,6 +115,21 @@ pub fn run(
         Some(thread.exit_code_low32),
         dependency_warnings,
     ))
+}
+
+/// Runs dependency preflight without making advisory checks authoritative.
+///
+/// A valid payload may use PE layouts or Wine search behavior that the bounded
+/// preflight does not understand. Windows remains the final loader authority,
+/// so preflight failures become visible warnings instead of blocking the load.
+#[must_use]
+fn advisory_dependency_warnings(
+    payload_path: &str,
+    process: &proton_informer_helper_protocol::WindowsProcessInfo,
+    modules: &[proton_informer_helper_protocol::WindowsModuleInfo],
+) -> Vec<String> {
+    dependency_warnings(payload_path, process, modules)
+        .unwrap_or_else(|error| vec![format!("dependency preflight skipped: {error}")])
 }
 
 /// Builds one verified result without exposing internal process types.
