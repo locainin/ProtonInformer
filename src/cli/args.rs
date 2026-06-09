@@ -11,7 +11,7 @@ use crate::types::Architecture;
 #[command(
     name = "proton-informer",
     version,
-    about = "Inspect and plan safe Proton, Wine, and native Linux mod loading"
+    about = "Load Windows PE DLLs into Wine and Proton processes from Linux"
 )]
 pub(super) struct Cli {
     /// Emit machine-readable success and error output.
@@ -37,6 +37,45 @@ pub(super) enum Command {
     Inspect {
         /// Payload file to inspect.
         payload: PathBuf,
+    },
+
+    /// Discover a Wine or Proton target and load one validated PE DLL.
+    Inject {
+        /// Payload DLL to validate and load.
+        #[arg(long)]
+        payload: PathBuf,
+
+        /// Exact Linux process identifier.
+        #[arg(long, required_unless_present = "app_id", conflicts_with = "app_id")]
+        pid: Option<u32>,
+
+        /// Steam application identifier used for game and process discovery.
+        #[arg(long, required_unless_present = "pid", conflicts_with = "pid")]
+        app_id: Option<u32>,
+
+        /// Guest executable basename used to disambiguate an `AppID`.
+        #[arg(long)]
+        process: Option<String>,
+
+        /// Generate request artifacts without running the helper.
+        #[arg(long, conflicts_with = "yes")]
+        dry_run: bool,
+
+        /// Execute the validated helper request for real.
+        #[arg(long, conflicts_with = "dry_run")]
+        yes: bool,
+
+        /// Retain bounded helper stdout and stderr in the private run directory.
+        #[arg(long)]
+        keep_run_files: bool,
+
+        /// Maximum helper operation time in milliseconds.
+        #[arg(
+            long,
+            default_value_t = 10_000,
+            value_parser = clap::value_parser!(u64).range(1..=300_000)
+        )]
+        timeout_ms: u64,
     },
 
     /// Prepare or execute a helper-backed load for a running Wine process.
@@ -117,4 +156,11 @@ pub(super) enum Command {
 
     /// Discover games and existing Proton prefixes from Steam metadata.
     SteamGames,
+
+    /// Verify helper permissions, checksum, version, schema, and architecture.
+    VerifyInstall {
+        /// Running Wine or Proton process used for the runtime version probe.
+        #[arg(long)]
+        pid: u32,
+    },
 }

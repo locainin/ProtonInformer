@@ -1,0 +1,165 @@
+//! Installed helper integrity and runtime compatibility verification.
+
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+
+use proton_informer_helper_protocol::{HelperVersion, SCHEMA_VERSION};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+use crate::error::{Error, Result};
+use crate::process::ProcessInfo;
+use crate::types::Architecture;
+
+const HASH_BUFFER_BYTES: usize = 16 * 1024;
+const HEX: &[u8; 16] = b"0123456789abcdef";
+
+/// Successful helper installation verification.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InstallVerification {
+    /// Architecture verified on disk and inside Wine or Proton.
+    pub architecture: Architecture,
+    /// SHA-256 recorded in the adjacent release manifest.
+    pub helper_sha256: String,
+    /// Trusted helper executable.
+    pub helper_path: PathBuf,
+    /// Protocol schema reported by the helper.
+    pub schema_version: u32,
+    /// Helper semantic version.
+    pub version: String,
+}
+
+/// Verifies one helper file and executes its version probe in the target runtime.
+///
+/// # Errors
+///
+/// Returns an error for untrusted permissions, missing or mismatched manifests,
+/// incompatible helper identity, or runtime execution failure.
+pub fn verify_for_target(target: &ProcessInfo) -> Result<InstallVerification> {
+    let architecture = target
+        .guest_architecture
+        .ok_or_else(|| Error::InvalidInput("target guest architecture is unknown".into()))?;
+    let helper_path = crate::helper::find_wine_helper(architecture).ok_or_else(|| {
+        Error::InvalidInput(format!(
+            "no trusted {architecture} Windows helper is installed"
+        ))
+    })?;
+    if !crate::helper::helper_permissions_are_trusted(&helper_path) {
+        return Err(Error::Rejected(format!(
+            "helper file or directory is group-writable or world-writable: {}",
+            helper_path.display()
+        )));
+    }
+    let helper_sha256 = verify_sha256_manifest(&helper_path)?;
+    let invocation =
+        crate::helper_runtime::diagnostic_invocation(target, architecture, "--version-json")?;
+    let output = crate::helper_executor::execute(&invocation, 10_000)?;
+    if output.exit_code != Some(0) {
+        return Err(Error::HelperExecution(format!(
+            "helper version probe exited {:?}: {}",
+            output.exit_code,
+            output.stderr.trim()
+        )));
+    }
+    let version: HelperVersion = serde_json::from_str(&output.stdout)?;
+    validate_version(&version, architecture)?;
+    Ok(InstallVerification {
+        architecture,
+        helper_sha256,
+        helper_path,
+        schema_version: version.schema_version,
+        version: version.helper_version,
+    })
+}
+
+/// Verifies an adjacent `<helper>.sha256` release manifest.
+///
+/// # Errors
+///
+/// Returns an error when the manifest is absent, malformed, or does not match.
+pub fn verify_sha256_manifest(helper_path: &Path) -> Result<String> {
+    let manifest_path = PathBuf::from(format!("{}.sha256", helper_path.display()));
+    let manifest = std::fs::read_to_string(&manifest_path)
+        .map_err(|source| Error::io(&manifest_path, source))?;
+    let expected = manifest
+        .split_whitespace()
+        .next()
+        .filter(|hash| is_sha256(hash))
+        .ok_or_else(|| {
+            Error::InvalidInput(format!(
+                "helper SHA-256 manifest is malformed: {}",
+                manifest_path.display()
+            ))
+        })?;
+    let actual = sha256_file(helper_path)?;
+    if actual != expected {
+        return Err(Error::Rejected(format!(
+            "helper SHA-256 does not match {}",
+            manifest_path.display()
+        )));
+    }
+    Ok(actual)
+}
+
+/// Rejects helpers built for another controller or protocol.
+fn validate_version(version: &HelperVersion, architecture: Architecture) -> Result<()> {
+    if version.helper_name != "proton-informer-win-helper" {
+        return Err(Error::Rejected(format!(
+            "unexpected helper identity: {}",
+            version.helper_name
+        )));
+    }
+    if version.helper_version != env!("CARGO_PKG_VERSION") {
+        return Err(Error::Rejected(format!(
+            "helper version {} does not match controller {}",
+            version.helper_version,
+            env!("CARGO_PKG_VERSION")
+        )));
+    }
+    if version.architecture != crate::helper_protocol::protocol_architecture(architecture) {
+        return Err(Error::Rejected(format!(
+            "helper architecture {:?} does not match target {architecture}",
+            version.architecture
+        )));
+    }
+    if version.schema_version != SCHEMA_VERSION
+        || !version.schema_versions.contains(&SCHEMA_VERSION)
+    {
+        return Err(Error::Rejected(format!(
+            "helper does not support protocol schema {SCHEMA_VERSION}"
+        )));
+    }
+    Ok(())
+}
+
+/// Hashes one helper with fixed memory use.
+fn sha256_file(path: &Path) -> Result<String> {
+    let mut file = File::open(path).map_err(|source| Error::io(path, source))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; HASH_BUFFER_BYTES];
+    loop {
+        let count = file
+            .read(&mut buffer)
+            .map_err(|source| Error::io(path, source))?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    let digest = hasher.finalize();
+    let mut encoded = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    Ok(encoded)
+}
+
+/// Checks the exact lowercase hexadecimal form used by release manifests.
+fn is_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}

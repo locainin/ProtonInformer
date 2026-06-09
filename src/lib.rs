@@ -16,6 +16,8 @@ pub mod helper;
 pub mod helper_executor;
 pub mod helper_protocol;
 pub mod helper_runtime;
+pub mod inject;
+pub mod install;
 pub mod load;
 pub mod process;
 pub mod steam;

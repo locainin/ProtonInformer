@@ -15,6 +15,8 @@ use crate::decision;
 use crate::doctor;
 use crate::error::{Error, Result};
 use crate::helper_runtime;
+use crate::inject;
+use crate::install;
 use crate::load;
 use crate::process::{self, TargetKind};
 use crate::steam;
@@ -75,22 +77,27 @@ where
 /// Executes one fully parsed command.
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
-        Command::Doctor { pid } => {
-            let report = pid.map_or_else(|| Ok(doctor::run()), doctor::run_for_process)?;
-            if cli.json {
-                output::print_json(&report)?;
-            } else {
-                output::print_doctor(report);
-            }
-        }
-        Command::Inspect { payload } => {
-            let inspection = binary::inspect(&payload)?;
-            if cli.json {
-                output::print_json(&inspection)?;
-            } else {
-                output::print_inspection(&inspection);
-            }
-        }
+        Command::Doctor { pid } => run_doctor(pid, cli.json)?,
+        Command::Inspect { payload } => run_inspect(&payload, cli.json)?,
+        Command::Inject {
+            payload,
+            pid,
+            app_id,
+            process,
+            dry_run,
+            yes,
+            keep_run_files,
+            timeout_ms,
+        } => run_inject(&InjectOptions {
+            payload,
+            pid,
+            app_id,
+            process,
+            mode: requested_load_mode(dry_run, yes)?,
+            keep_run_files,
+            timeout_ms,
+            output: OutputMode::from_json(cli.json),
+        })?,
         Command::Load {
             payload,
             pid,
@@ -121,63 +128,180 @@ fn run(cli: Cli) -> Result<()> {
             dll_name,
             app_id,
             prefix,
-        } => {
-            let payload = binary::inspect(&payload)?;
-            let prefix = resolve_prefix(app_id, prefix)?;
-            let plan = decision::plan_override(payload, &prefix, app_id, &dll_name)?;
-            if cli.json {
-                output::print_json(&plan)?;
-            } else {
-                output::print_override_plan(&plan);
-            }
-        }
+        } => run_override_plan(&payload, &dll_name, app_id, prefix, cli.json)?,
         Command::Plan {
             payload,
             pid,
             target_arch,
-        } => {
-            let payload = binary::inspect(&payload)?;
-            let target = process::inspect(pid)?;
-            let plan = decision::plan_running(payload, target, target_arch)?;
-            if cli.json {
-                output::print_json(&plan)?;
-            } else {
-                output::print_load_plan(&plan);
-            }
-        }
-        Command::Processes { wine_only } => {
-            let mut processes = process::list();
-            if wine_only {
-                processes.retain(|process| process.target_kind == TargetKind::WineProtonWindows);
-            }
-            if cli.json {
-                output::print_json(&processes)?;
-            } else {
-                for process in processes {
-                    output::print_process(&process);
-                    println!();
-                }
-            }
-        }
-        Command::SteamGames => {
-            let report = steam::discover_games();
-            if cli.json {
-                output::print_json(&report)?;
-            } else {
-                output::print_steam_games(report);
-            }
-        }
+        } => run_plan(&payload, pid, target_arch, cli.json)?,
+        Command::Processes { wine_only } => run_processes(wine_only, cli.json)?,
+        Command::SteamGames => run_steam_games(cli.json)?,
+        Command::VerifyInstall { pid } => run_verify_install(pid, cli.json)?,
     }
 
     Ok(())
 }
 
+/// Fully parsed inputs for the product-level injection command.
+struct InjectOptions {
+    payload: PathBuf,
+    pid: Option<u32>,
+    app_id: Option<u32>,
+    process: Option<String>,
+    mode: LoadMode,
+    keep_run_files: bool,
+    timeout_ms: u64,
+    output: OutputMode,
+}
+
+/// Runs helper readiness checks.
+fn run_doctor(pid: Option<u32>, json: bool) -> Result<()> {
+    let report = pid.map_or_else(|| Ok(doctor::run()), doctor::run_for_process)?;
+    if json {
+        output::print_json(&report)
+    } else {
+        output::print_doctor(report);
+        Ok(())
+    }
+}
+
+/// Inspects one payload from binary headers.
+fn run_inspect(payload: &std::path::Path, json: bool) -> Result<()> {
+    let inspection = binary::inspect(payload)?;
+    if json {
+        output::print_json(&inspection)
+    } else {
+        output::print_inspection(&inspection);
+        Ok(())
+    }
+}
+
+/// Runs target discovery followed by the existing validated load flow.
+fn run_inject(options: &InjectOptions) -> Result<()> {
+    let target = inject::select_target(options.pid, options.app_id, options.process.as_deref())?;
+    if options.output == OutputMode::Human {
+        output::print_selected_target(&target);
+    }
+    run_load_for_target(
+        &options.payload,
+        target,
+        None,
+        options.mode,
+        options.keep_run_files,
+        options.timeout_ms,
+        options.output == OutputMode::Json,
+    )
+}
+
+/// Converts command flags into one explicit load behavior.
+fn requested_load_mode(dry_run: bool, yes: bool) -> Result<LoadMode> {
+    match (dry_run, yes) {
+        (true, false) => Ok(LoadMode::DryRun),
+        (false, true) => Ok(LoadMode::Execute),
+        _ => Err(Error::InvalidInput(
+            "select --dry-run to inspect the request or --yes to execute it".into(),
+        )),
+    }
+}
+
+/// Runs startup override planning.
+fn run_override_plan(
+    payload: &std::path::Path,
+    dll_name: &str,
+    app_id: Option<u32>,
+    prefix: Option<PathBuf>,
+    json: bool,
+) -> Result<()> {
+    let payload = binary::inspect(payload)?;
+    let prefix = resolve_prefix(app_id, prefix)?;
+    let plan = decision::plan_override(payload, &prefix, app_id, dll_name)?;
+    if json {
+        output::print_json(&plan)
+    } else {
+        output::print_override_plan(&plan);
+        Ok(())
+    }
+}
+
+/// Runs non-mutating backend planning.
+fn run_plan(
+    payload: &std::path::Path,
+    pid: u32,
+    target_architecture: Option<crate::types::Architecture>,
+    json: bool,
+) -> Result<()> {
+    let payload = binary::inspect(payload)?;
+    let target = process::inspect(pid)?;
+    let plan = decision::plan_running(payload, target, target_architecture)?;
+    if json {
+        output::print_json(&plan)
+    } else {
+        output::print_load_plan(&plan);
+        Ok(())
+    }
+}
+
+/// Lists readable process evidence.
+fn run_processes(wine_only: bool, json: bool) -> Result<()> {
+    let mut processes = process::list();
+    if wine_only {
+        processes.retain(|process| process.target_kind == TargetKind::WineProtonWindows);
+    }
+    if json {
+        output::print_json(&processes)
+    } else {
+        for process in processes {
+            output::print_process(&process);
+            println!();
+        }
+        Ok(())
+    }
+}
+
+/// Lists Steam games and retained metadata warnings.
+fn run_steam_games(json: bool) -> Result<()> {
+    let report = steam::discover_games();
+    if json {
+        output::print_json(&report)
+    } else {
+        output::print_steam_games(report);
+        Ok(())
+    }
+}
+
+/// Verifies one helper install against a live runtime.
+fn run_verify_install(pid: u32, json: bool) -> Result<()> {
+    let target = process::inspect(pid)?;
+    let report = install::verify_for_target(&target)?;
+    if json {
+        output::print_json(&report)
+    } else {
+        output::print_install_verification(&report);
+        Ok(())
+    }
+}
+
 /// Explicit behavior selected for one validated load request.
+#[derive(Clone, Copy)]
 enum LoadMode {
     /// Build and print request artifacts without starting the helper.
     DryRun,
     /// Execute the helper and require verified module evidence.
     Execute,
+}
+
+/// Terminal or machine-readable output selection.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OutputMode {
+    Human,
+    Json,
+}
+
+impl OutputMode {
+    /// Converts the global JSON flag once at the command boundary.
+    const fn from_json(json: bool) -> Self {
+        if json { Self::Json } else { Self::Human }
+    }
 }
 
 /// Fully parsed inputs for one helper-backed load.
@@ -193,9 +317,30 @@ struct LoadOptions {
 
 /// Validates and prepares one helper-backed running-process load.
 fn run_load(options: &LoadOptions) -> Result<()> {
-    let payload = binary::inspect(&options.payload)?;
     let target = process::inspect(options.pid)?;
-    let plan = decision::plan_running(payload, target, options.target_arch)?;
+    run_load_for_target(
+        &options.payload,
+        target,
+        options.target_arch,
+        options.mode,
+        options.keep_run_files,
+        options.timeout_ms,
+        options.json,
+    )
+}
+
+/// Runs the shared validated helper flow for one already selected target.
+fn run_load_for_target(
+    payload_path: &std::path::Path,
+    target: crate::process::ProcessInfo,
+    target_architecture: Option<crate::types::Architecture>,
+    mode: LoadMode,
+    keep_run_files: bool,
+    timeout_ms: u64,
+    json: bool,
+) -> Result<()> {
+    let payload = binary::inspect(payload_path)?;
+    let plan = decision::plan_running(payload, target, target_architecture)?;
     if !plan.executable_now {
         return Err(Error::Rejected(
             "load is not executable because one or more requirements did not fully pass; run plan \
@@ -203,11 +348,10 @@ fn run_load(options: &LoadOptions) -> Result<()> {
                 .into(),
         ));
     }
-    let helper_plan =
-        helper_runtime::plan_load_dry_run(&plan.payload, &plan.target, options.timeout_ms)?;
-    match options.mode {
+    let helper_plan = helper_runtime::plan_load_dry_run(&plan.payload, &plan.target, timeout_ms)?;
+    match mode {
         LoadMode::DryRun => {
-            if options.json {
+            if json {
                 output::print_json(&helper_plan)
             } else {
                 output::print_load_dry_run(&helper_plan);
@@ -215,8 +359,8 @@ fn run_load(options: &LoadOptions) -> Result<()> {
             }
         }
         LoadMode::Execute => {
-            let result = load::execute(&helper_plan, options.keep_run_files)?;
-            if options.json {
+            let result = load::execute(&helper_plan, keep_run_files)?;
+            if json {
                 output::print_json(&result)
             } else {
                 output::print_load_result(&result);

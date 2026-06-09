@@ -1,6 +1,7 @@
 //! Discovery for replaceable backend helper executables.
 
 use std::env;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use crate::binary::{self, BinaryFormat};
@@ -9,21 +10,29 @@ use crate::types::Architecture;
 /// Finds the configured Wine helper without executing it.
 #[must_use]
 pub fn find_wine_helper(architecture: Architecture) -> Option<PathBuf> {
-    let file_name = match architecture {
-        Architecture::X86 => "proton-informer-win32-helper.exe",
-        Architecture::X86_64 => "proton-informer-win-helper.exe",
+    let file_names: &[&str] = match architecture {
+        Architecture::X86 => &[
+            "proton-informer-win32-helper.exe",
+            "proton-informer-win-helper.exe",
+        ],
+        Architecture::X86_64 => &["proton-informer-win-helper.exe"],
         Architecture::Arm | Architecture::Aarch64 | Architecture::Unknown => return None,
     };
 
-    helper_directories()
+    helper_directories(architecture)
         .into_iter()
-        .map(|directory| directory.join(file_name))
+        .flat_map(|directory| {
+            file_names
+                .iter()
+                .map(move |file_name| directory.join(file_name))
+        })
         .filter_map(|candidate| candidate.canonicalize().ok())
         .find(|candidate| {
-            binary::inspect(candidate).is_ok_and(|inspection| {
-                inspection.format == BinaryFormat::PeExecutable
-                    && inspection.architecture == architecture
-            })
+            helper_permissions_are_trusted(candidate)
+                && binary::inspect(candidate).is_ok_and(|inspection| {
+                    inspection.format == BinaryFormat::PeExecutable
+                        && inspection.architecture == architecture
+                })
         })
 }
 
@@ -60,7 +69,7 @@ fn is_executable(path: &Path) -> bool {
     path.is_file()
 }
 
-fn helper_directories() -> Vec<PathBuf> {
+fn helper_directories(architecture: Architecture) -> Vec<PathBuf> {
     let mut directories = Vec::new();
 
     if let Some(configured) = env::var_os("PROTON_INFORMER_HELPER_DIR") {
@@ -74,11 +83,30 @@ fn helper_directories() -> Vec<PathBuf> {
     {
         directories.push(parent.join("helpers"));
         if let Some(target_root) = parent.parent() {
-            directories.push(target_root.join("x86_64-pc-windows-gnu").join("release"));
-            directories.push(target_root.join("x86_64-pc-windows-gnu").join("debug"));
+            let rust_target = match architecture {
+                Architecture::X86 => "i686-pc-windows-gnu",
+                Architecture::X86_64 => "x86_64-pc-windows-gnu",
+                Architecture::Arm | Architecture::Aarch64 | Architecture::Unknown => {
+                    return directories;
+                }
+            };
+            directories.push(target_root.join(rust_target).join("release"));
+            directories.push(target_root.join(rust_target).join("debug"));
         }
     }
     directories.push(Path::new("/usr/lib/proton-informer/helpers").to_path_buf());
 
     directories
+}
+
+/// Rejects helpers or containing directories writable by group or other users.
+pub(crate) fn helper_permissions_are_trusted(path: &Path) -> bool {
+    let file_trusted = path
+        .metadata()
+        .is_ok_and(|metadata| metadata.permissions().mode() & 0o022 == 0);
+    let directory_trusted = path
+        .parent()
+        .and_then(|directory| directory.metadata().ok())
+        .is_some_and(|metadata| metadata.permissions().mode() & 0o022 == 0);
+    file_trusted && directory_trusted
 }

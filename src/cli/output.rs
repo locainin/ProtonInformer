@@ -9,6 +9,7 @@ use crate::decision::{LoadPlan, OverridePlan};
 use crate::doctor::DoctorReport;
 use crate::error::{Error, Result};
 use crate::helper_runtime::LoadDryRunPlan;
+use crate::install::InstallVerification;
 use crate::load::LoadExecutionResult;
 use crate::process::ProcessInfo;
 use crate::steam::SteamDiscoveryReport;
@@ -162,6 +163,27 @@ pub(super) fn print_process(process: &ProcessInfo) {
     );
 }
 
+/// Writes the unique target selected by the one-command workflow.
+pub(super) fn print_selected_target(process: &ProcessInfo) {
+    println!("Selected Target");
+    println!("  Linux PID:           {}", process.pid);
+    println!(
+        "  Guest executable:    {}",
+        display_optional_path(
+            process
+                .guest_executable
+                .as_ref()
+                .map(|candidate| candidate.path.as_path())
+        )
+    );
+    println!(
+        "  Steam AppID:         {}",
+        process
+            .steam_app_id
+            .map_or_else(|| "<unknown>".into(), |id| id.to_string())
+    );
+}
+
 /// Writes Steam discovery results and retained metadata warnings.
 pub(super) fn print_steam_games(report: SteamDiscoveryReport) {
     for game in report.games {
@@ -211,4 +233,15 @@ pub(super) fn print_doctor(report: DoctorReport) {
 /// Formats an optional path without exposing platform-specific sentinel values.
 fn display_optional_path(path: Option<&Path>) -> String {
     path.map_or_else(|| "<unknown>".into(), |path| path.display().to_string())
+}
+
+/// Writes the verified helper installation identity.
+pub(super) fn print_install_verification(report: &InstallVerification) {
+    println!("Helper Installation");
+    println!("  Path:         {}", report.helper_path.display());
+    println!("  Architecture: {}", report.architecture);
+    println!("  Version:      {}", report.version);
+    println!("  Schema:       {}", report.schema_version);
+    println!("  SHA-256:      {}", report.helper_sha256);
+    println!("  Verified:     yes");
 }
