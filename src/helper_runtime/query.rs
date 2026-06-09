@@ -8,8 +8,8 @@ use proton_informer_helper_protocol::{
 use uuid::Uuid;
 
 use crate::error::{Error, Result};
-use crate::helper;
 use crate::helper_protocol;
+use crate::install;
 use crate::process::ProcessInfo;
 use crate::wine;
 
@@ -31,9 +31,8 @@ pub fn query_modules(target: &ProcessInfo) -> Result<ModuleQueryResult> {
         .wine_prefix
         .as_deref()
         .ok_or_else(|| Error::InvalidInput("target Wine prefix is unknown".into()))?;
-    let helper_path = helper::find_wine_helper(architecture).ok_or_else(|| {
-        Error::InvalidInput(format!("no {architecture} Windows helper is installed"))
-    })?;
+    // Module queries execute the same helper and require the same integrity checks
+    let helper_path = install::verify_for_target(target)?.helper_path;
     let helper_windows_path = wine::unix_path_to_windows(prefix, &helper_path)?;
     let run_directory = create_request_directory(prefix, &Uuid::new_v4().to_string())?;
 

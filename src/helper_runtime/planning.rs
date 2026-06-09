@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::binary::BinaryInspection;
 use crate::error::{Error, Result};
-use crate::helper;
 use crate::helper_protocol;
+use crate::install;
 use crate::process::ProcessInfo;
 use crate::types::Architecture;
 use crate::wine;
@@ -35,12 +35,8 @@ pub fn plan_load_dry_run(
         .wine_prefix
         .as_deref()
         .ok_or_else(|| Error::InvalidInput("target Wine prefix is unknown".into()))?;
-    let helper_path = helper::find_wine_helper(payload.architecture).ok_or_else(|| {
-        Error::InvalidInput(format!(
-            "no {} Windows helper is installed",
-            payload.architecture
-        ))
-    })?;
+    // Every helper-backed operation verifies the installed binary before use
+    let helper_path = install::verify_for_target(target)?.helper_path;
     let helper_windows_path = wine::unix_path_to_windows(prefix, &helper_path)?;
     let request_id = Uuid::new_v4().to_string();
     let run_directory = create_request_directory(prefix, &request_id)?;
