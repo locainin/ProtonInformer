@@ -169,7 +169,15 @@ impl HelperRequest {
                 if !self.options.verify_module_after_load {
                     return Err(ProtocolValidationError::ModuleVerificationRequired);
                 }
-                validate_target(self.target.as_ref())?;
+                let target = validate_target(self.target.as_ref())?;
+                if matches!(target.selector, TargetSelector::ByWindowsPid(_)) {
+                    if target.expected_creation_time_100ns.is_none() {
+                        return Err(ProtocolValidationError::MissingCreationTime);
+                    }
+                    if target.expected_executable_windows_path.is_none() {
+                        return Err(ProtocolValidationError::MissingExecutablePath);
+                    }
+                }
                 validate_payload(self.payload.as_ref())?;
             }
             HelperOperation::Unknown => {
@@ -349,6 +357,12 @@ pub enum ProtocolValidationError {
     /// Operation requires a payload.
     #[error("operation requires payload")]
     MissingPayload,
+    /// Exact PID loading requires a process creation timestamp.
+    #[error("load_library with by_windows_pid requires expected_creation_time_100ns")]
+    MissingCreationTime,
+    /// Exact PID loading requires the observed Windows executable path.
+    #[error("load_library with by_windows_pid requires expected_executable_windows_path")]
+    MissingExecutablePath,
     /// Operation requires a target.
     #[error("operation requires target")]
     MissingTarget,
@@ -367,7 +381,9 @@ pub enum ProtocolValidationError {
 }
 
 /// Validates one operation target.
-fn validate_target(target: Option<&HelperTarget>) -> Result<(), ProtocolValidationError> {
+fn validate_target(
+    target: Option<&HelperTarget>,
+) -> Result<&HelperTarget, ProtocolValidationError> {
     let target = target.ok_or(ProtocolValidationError::MissingTarget)?;
     if target.expected_architecture == ProtocolArchitecture::Unknown {
         return Err(ProtocolValidationError::InvalidTargetArchitecture);
@@ -376,17 +392,17 @@ fn validate_target(target: Option<&HelperTarget>) -> Result<(), ProtocolValidati
     if name.is_empty() || name.contains(['/', '\\']) {
         return Err(ProtocolValidationError::InvalidProcessName);
     }
-    if matches!(
+    if let Some(path) = target.expected_executable_windows_path.as_deref() {
+        if !is_absolute_windows_path(path) {
+            return Err(ProtocolValidationError::InvalidExecutablePath);
+        }
+    } else if matches!(
         target.selector,
         TargetSelector::ByProcessNameAndExecutablePath
-    ) && target
-        .expected_executable_windows_path
-        .as_deref()
-        .is_none_or(|path| !is_absolute_windows_path(path))
-    {
-        return Err(ProtocolValidationError::InvalidExecutablePath);
+    ) {
+        return Err(ProtocolValidationError::MissingExecutablePath);
     }
-    Ok(())
+    Ok(target)
 }
 
 /// Validates one load payload.

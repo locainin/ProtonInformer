@@ -133,3 +133,49 @@ fn unknown_operation_is_never_a_valid_request() {
 
     assert!(request.validate().is_err());
 }
+
+#[test]
+fn exact_pid_load_requires_process_creation_time() {
+    let mut request = load_request();
+    let target = request.target.as_mut().expect("target fixture");
+    target.selector = TargetSelector::ByWindowsPid(316);
+    target.expected_creation_time_100ns = None;
+
+    let error = request
+        .validate()
+        .expect_err("exact PID load must reject missing creation time");
+
+    assert!(error.to_string().contains("expected_creation_time_100ns"));
+}
+
+#[test]
+fn exact_pid_load_requires_observed_executable_path() {
+    let mut request = load_request();
+    let target = request.target.as_mut().expect("target fixture");
+    target.selector = TargetSelector::ByWindowsPid(316);
+    target.expected_executable_windows_path = None;
+
+    let error = request
+        .validate()
+        .expect_err("exact PID load must reject missing executable path");
+
+    assert!(
+        error
+            .to_string()
+            .contains("expected_executable_windows_path")
+    );
+}
+
+#[test]
+fn exact_pid_selector_rejects_malformed_optional_executable_path() {
+    let mut request = load_request();
+    let target = request.target.as_mut().expect("target fixture");
+    target.selector = TargetSelector::ByWindowsPid(316);
+    target.expected_executable_windows_path = Some("relative.exe".into());
+
+    let error = request
+        .validate()
+        .expect_err("malformed exact PID path must fail");
+
+    assert!(error.to_string().contains("absolute Windows"));
+}

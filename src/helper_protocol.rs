@@ -42,16 +42,22 @@ pub fn load_request(
         .ok_or_else(|| Error::InvalidInput("target Wine prefix is unknown".into()))?;
     let payload_windows_path = wine::unix_path_to_windows(prefix, &payload.path)?;
     let expected_process_name = target_process_name(target)?;
-    let expected_executable_windows_path = target
-        .guest_executable
-        .as_ref()
-        .map(|candidate| wine::unix_path_to_windows(prefix, &candidate.path))
-        .transpose()?
+    let expected_executable_windows_path = windows_target
+        .executable_windows_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
         .ok_or_else(|| {
-            Error::InvalidInput(
-                "guest executable path is required for safe helper target selection".into(),
-            )
-        })?;
+            Error::InvalidInput("helper did not report the target executable Windows path".into())
+        })?
+        .to_owned();
+    let expected_creation_time_100ns = windows_target.creation_time_100ns.ok_or_else(|| {
+        Error::InvalidInput(
+            "helper did not report the target process creation time; exact PID reuse protection \
+             is unavailable"
+                .into(),
+        )
+    })?;
 
     let request = HelperRequest {
         operation: HelperOperation::LoadLibrary,
@@ -67,7 +73,7 @@ pub fn load_request(
         request_id,
         schema_version: SCHEMA_VERSION,
         target: Some(HelperTarget {
-            expected_creation_time_100ns: windows_target.creation_time_100ns,
+            expected_creation_time_100ns: Some(expected_creation_time_100ns),
             expected_architecture: protocol_architecture(payload.architecture),
             expected_executable_windows_path: Some(expected_executable_windows_path),
             expected_process_name,

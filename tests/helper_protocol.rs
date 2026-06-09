@@ -88,6 +88,10 @@ fn load_request_hashes_the_exact_payload_and_uses_guest_identity() {
     assert_eq!(target.selector, TargetSelector::ByWindowsPid(316));
     assert_eq!(target.expected_creation_time_100ns, Some(123));
     assert_eq!(target.expected_architecture, ProtocolArchitecture::X86_64);
+    assert_eq!(
+        target.expected_executable_windows_path.as_deref(),
+        Some(r"S:\game.exe")
+    );
 }
 
 #[test]
@@ -141,4 +145,68 @@ fn load_request_rejects_unknown_architecture() {
     .expect_err("unknown architecture must fail before path access");
 
     assert!(error.to_string().contains("architecture must be known"));
+}
+
+#[test]
+fn load_request_rejects_missing_windows_creation_time() {
+    let directory = tempdir().expect("temporary directory");
+    let prefix = directory.path().join("pfx");
+    let game = directory.path().join("game.exe");
+    let payload_path = directory.path().join("mod.dll");
+    fs::create_dir_all(prefix.join("dosdevices")).expect("prefix drive directory");
+    fs::write(&game, b"game fixture").expect("game fixture");
+    fs::write(&payload_path, b"abc").expect("payload fixture");
+    symlink("/", prefix.join("dosdevices/z:")).expect("root drive mapping");
+    let payload = BinaryInspection {
+        architecture: Architecture::X86_64,
+        extension_warning: None,
+        format: BinaryFormat::PeDll,
+        path: payload_path,
+        size_bytes: 3,
+    };
+    let mut windows_target = windows_target();
+    windows_target.creation_time_100ns = None;
+
+    let error = load_request(
+        &payload,
+        &target(prefix, game),
+        &windows_target,
+        10_000,
+        "request-4".into(),
+    )
+    .expect_err("missing creation time must fail closed");
+
+    assert!(error.to_string().contains("PID reuse protection"));
+}
+
+#[test]
+fn load_request_rejects_missing_helper_observed_windows_path() {
+    let directory = tempdir().expect("temporary directory");
+    let prefix = directory.path().join("pfx");
+    let game = directory.path().join("game.exe");
+    let payload_path = directory.path().join("mod.dll");
+    fs::create_dir_all(prefix.join("dosdevices")).expect("prefix drive directory");
+    fs::write(&game, b"game fixture").expect("game fixture");
+    fs::write(&payload_path, b"abc").expect("payload fixture");
+    symlink("/", prefix.join("dosdevices/z:")).expect("root drive mapping");
+    let payload = BinaryInspection {
+        architecture: Architecture::X86_64,
+        extension_warning: None,
+        format: BinaryFormat::PeDll,
+        path: payload_path,
+        size_bytes: 3,
+    };
+    let mut windows_target = windows_target();
+    windows_target.executable_windows_path = None;
+
+    let error = load_request(
+        &payload,
+        &target(prefix, game),
+        &windows_target,
+        10_000,
+        "request-5".into(),
+    )
+    .expect_err("missing observed Windows path must fail closed");
+
+    assert!(error.to_string().contains("executable Windows path"));
 }
