@@ -2,7 +2,9 @@
 
 mod args;
 mod commands;
+mod debug;
 mod output;
+mod style;
 
 use std::ffi::OsString;
 use std::process::ExitCode;
@@ -42,7 +44,7 @@ where
                 return ExitCode::SUCCESS;
             }
             if json_requested {
-                output::print_error("cli_parse", &error.to_string(), None, None);
+                output::error::print_error("cli_parse", &error.to_string(), None, None);
             } else if let Err(print_error) = error.print() {
                 eprintln!("Error: {print_error}");
             }
@@ -50,21 +52,23 @@ where
         }
     };
     let json = cli.json;
+    debug::set_enabled(cli.debug && !json);
+    style::configure(!json);
 
     match commands::run(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             if json {
-                output::print_error(
+                output::error::print_error(
                     error.kind(),
                     &error.to_string(),
                     error.windows_error(),
                     error.windows_error_hint(),
                 );
             } else {
-                eprintln!("Error: {error}");
+                eprintln!("{} {error}", style::error_label());
                 if let Some(hint) = error.windows_error_hint() {
-                    eprintln!("Likely cause: {hint}");
+                    eprintln!("{} {hint}", style::hint_label());
                 }
             }
             ExitCode::FAILURE
