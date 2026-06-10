@@ -86,6 +86,7 @@ jobs:
           esac
 
           sha256sum "$output" > "$output.sha256"
+          sha256sum --check "$output.sha256"
       - uses: actions/upload-artifact@v7
         with:
           name: proton-informer-helper-${{ matrix.target }}
@@ -132,6 +133,7 @@ jobs:
 
           tar -C dist -czf "${package}.tar.gz" "${package}"
           sha256sum "${package}.tar.gz" > "${package}.tar.gz.sha256"
+          sha256sum --check "${package}.tar.gz.sha256"
 
           mkdir -p upload
           mv "${package}.tar.gz" "${package}.tar.gz.sha256" upload/
