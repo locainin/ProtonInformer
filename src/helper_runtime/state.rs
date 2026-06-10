@@ -1,9 +1,9 @@
 //! Owner-only payload staging and request state management.
 
 use std::env;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{Read, Write};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -151,13 +151,42 @@ fn create_owner_directory(root: &Path, request_id: &str) -> Result<PathBuf> {
     let runs = root.join("runs");
     let directory = runs.join(request_id);
     for path in [root, runs.as_path(), directory.as_path()] {
-        fs::create_dir_all(path).map_err(|source| Error::io(path, source))?;
+        create_private_directory(path)?;
         validate_owner_directory_shape(path)?;
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))
             .map_err(|source| Error::io(path, source))?;
         validate_owner_directory(path)?;
     }
     Ok(directory)
+}
+
+/// Creates one missing directory tree with owner-only modes from creation.
+fn create_private_directory(path: &Path) -> Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => return Ok(()),
+        Ok(_) => {
+            return Err(Error::Rejected(format!(
+                "state path is not a real directory: {}",
+                path.display()
+            )));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(Error::io(path, error)),
+    }
+
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        create_private_directory(parent)?;
+    }
+
+    let mut builder = DirBuilder::new();
+    builder.mode(0o700);
+    match builder.create(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(Error::io(path, error)),
+    }
 }
 
 /// Verifies a created state directory without following symlinks.
