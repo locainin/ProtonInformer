@@ -317,6 +317,7 @@ pub(super) fn print_install_verifications(reports: &[InstallVerification]) {
         }
         println!("Helper Installation");
         println!("  Path:             {}", report.helper_path.display());
+        println!("  Source:           {}", report.helper_source);
         println!("  Architecture:     {}", report.architecture);
         println!(
             "  Version:          {}",
@@ -331,5 +332,8 @@ pub(super) fn print_install_verifications(reports: &[InstallVerification]) {
         println!("  SHA-256:          {}", report.helper_sha256);
         println!("  Static verified:  yes");
         println!("  Runtime verified: {}", report.runtime_verified);
+        for warning in &report.warnings {
+            println!("  Warning:          {warning}");
+        }
     }
 }

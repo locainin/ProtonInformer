@@ -85,6 +85,17 @@ pub fn run() -> DoctorReport {
     ));
     checks.push(command_check("wine", &["wine", "wine64"]));
     checks.push(command_check("winepath", &["winepath"]));
+    if let Some(directory) = helper::helper_dir_env_override() {
+        checks.push(DoctorCheck {
+            name: "helper_dir_env_override".into(),
+            status: CheckStatus::Warning,
+            detail: format!(
+                "{} is set to {}; helper lookup will prefer this directory",
+                helper::HELPER_DIR_ENV,
+                directory.display()
+            ),
+        });
+    }
     checks.push(helper_check(Architecture::X86));
     checks.push(helper_check(Architecture::X86_64));
     checks.push(state_check());

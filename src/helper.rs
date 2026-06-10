@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 use crate::binary::{self, BinaryFormat};
 use crate::types::Architecture;
 
+pub const HELPER_DIR_ENV: &str = "PROTON_INFORMER_HELPER_DIR";
+
 /// Finds the configured Wine helper without executing it.
 #[must_use]
 pub fn find_wine_helper(architecture: Architecture) -> Option<PathBuf> {
@@ -31,6 +33,22 @@ pub fn find_wine_helper(architecture: Architecture) -> Option<PathBuf> {
                         && inspection.architecture == architecture
                 })
         })
+}
+
+/// Returns the absolute helper-directory environment override.
+#[must_use]
+pub fn helper_dir_env_override() -> Option<PathBuf> {
+    env::var_os(HELPER_DIR_ENV)
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+}
+
+/// Reports whether one selected helper came from the environment override.
+#[must_use]
+pub fn helper_uses_env_override(path: &Path) -> bool {
+    helper_dir_env_override()
+        .and_then(|directory| directory.canonicalize().ok())
+        .is_some_and(|directory| path.starts_with(directory))
 }
 
 /// Checks whether an executable name is available through PATH.
@@ -69,11 +87,8 @@ fn is_executable(path: &Path) -> bool {
 fn helper_directories(architecture: Architecture) -> Vec<PathBuf> {
     let mut directories = Vec::new();
 
-    if let Some(configured) = env::var_os("PROTON_INFORMER_HELPER_DIR") {
-        let configured = PathBuf::from(configured);
-        if configured.is_absolute() {
-            directories.push(configured);
-        }
+    if let Some(configured) = helper_dir_env_override() {
+        directories.push(configured);
     }
     if let Ok(executable) = env::current_exe()
         && let Some(parent) = executable.parent()

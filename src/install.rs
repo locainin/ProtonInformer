@@ -1,5 +1,6 @@
 //! Installed helper integrity and runtime compatibility verification.
 
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -24,12 +25,35 @@ pub struct InstallVerification {
     pub helper_sha256: String,
     /// Helper executable that passed local file checks.
     pub helper_path: PathBuf,
+    /// Lookup source that selected the helper.
+    pub helper_source: HelperLookupSource,
     /// Whether the helper was also executed inside Wine or Proton.
     pub runtime_verified: bool,
     /// Protocol schema reported by a live helper probe.
     pub schema_version: Option<u32>,
     /// Helper semantic version reported by a live helper probe.
     pub version: Option<String>,
+    /// Non-fatal verification warnings.
+    pub warnings: Vec<String>,
+}
+
+/// Source used to select one helper executable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HelperLookupSource {
+    /// Selected from `PROTON_INFORMER_HELPER_DIR`.
+    EnvironmentOverride,
+    /// Selected from packaged or build output directories.
+    PackagedSearchPath,
+}
+
+impl fmt::Display for HelperLookupSource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EnvironmentOverride => formatter.write_str(crate::helper::HELPER_DIR_ENV),
+            Self::PackagedSearchPath => formatter.write_str("packaged search path"),
+        }
+    }
 }
 
 /// Verifies one helper file without requiring a running game.
@@ -56,13 +80,17 @@ pub fn verify_static(architecture: Architecture) -> Result<InstallVerification> 
         )));
     }
     let helper_sha256 = verify_sha256_manifest(&helper_path)?;
+    let helper_source = helper_lookup_source(&helper_path);
+    let warnings = helper_source_warnings(helper_source);
     Ok(InstallVerification {
         architecture,
         helper_sha256,
         helper_path,
+        helper_source,
         runtime_verified: false,
         schema_version: None,
         version: None,
+        warnings,
     })
 }
 
@@ -76,6 +104,26 @@ pub fn verify_all_static() -> Result<Vec<InstallVerification>> {
         .into_iter()
         .map(verify_static)
         .collect()
+}
+
+/// Classifies the selected helper path for audit output.
+fn helper_lookup_source(helper_path: &Path) -> HelperLookupSource {
+    if crate::helper::helper_uses_env_override(helper_path) {
+        HelperLookupSource::EnvironmentOverride
+    } else {
+        HelperLookupSource::PackagedSearchPath
+    }
+}
+
+/// Builds loud but non-fatal warnings for powerful helper lookup sources.
+fn helper_source_warnings(source: HelperLookupSource) -> Vec<String> {
+    match source {
+        HelperLookupSource::EnvironmentOverride => vec![format!(
+            "{} selected this helper; unset it to verify the packaged helper search path",
+            crate::helper::HELPER_DIR_ENV
+        )],
+        HelperLookupSource::PackagedSearchPath => Vec::new(),
+    }
 }
 
 /// Verifies one helper file and executes its version probe in the target runtime.
