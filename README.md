@@ -1,5 +1,7 @@
 # ProtonInformer
 
+![ProtonInformer logo](docs/assets/logo.png)
+
 ProtonInformer is a Linux-native CLI for loading Windows PE DLLs into Wine and Proton processes.
 
 It is built for Linux users who need a clean Proton/Wine-aware loader instead of running random Windows injector tools by hand inside a prefix. The Linux controller finds and validates the target, checks the payload, stages the request, launches the matching Windows helper inside the selected runtime, and confirms that the expected module was loaded.
