@@ -1,6 +1,8 @@
 # ProtonInformer
 
-![ProtonInformer logo](docs/assets/logo.png)
+<p align="center">
+  <img src="docs/assets/logo.png" alt="ProtonInformer logo" width="720">
+</p>
 
 ProtonInformer is a Linux-native CLI for loading Windows PE DLLs into Wine and Proton processes.
 
