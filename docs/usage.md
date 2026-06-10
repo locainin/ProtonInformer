@@ -115,6 +115,17 @@ Select an exact Linux PID:
 ./proton-informer inject --pid 12345 --payload ./mod.dll --yes
 ```
 
+Some DLLs expect their own path to be inside the game directory. For those, keep
+the original validated payload path instead of loading a private staged copy:
+
+```bash
+./proton-informer inject \
+  --pid 12345 \
+  --payload "/path/to/game/mod.dll" \
+  --original-payload-path \
+  --yes
+```
+
 `--yes` is required for a real load. `--dry-run` and `--yes` cannot be used together.
 
 ## Inspect Loaded Modules

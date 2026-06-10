@@ -18,6 +18,7 @@ ProtonInformer provides:
 - architecture matching before load
 - Wine prefix and drive mapping awareness
 - private request staging
+- optional original payload path loading for game-directory dependent DLLs
 - Windows helper execution inside the target prefix
 - exact Windows process identity checks
 - `LoadLibraryW` based DLL loading
@@ -48,10 +49,10 @@ The Linux controller performs the orchestration:
 1. Inspect the payload from binary headers.
 2. Identify the Wine or Proton target.
 3. Check ownership, architecture, prefix, and process evidence.
-4. Stage the payload and request in private run state.
+4. Stage the request and choose either a private payload copy or the original payload path.
 5. Launch the matching Windows helper inside the selected runtime.
 6. Resolve the exact Windows process.
-7. Load the DLL with `LoadLibraryW`.
+7. Load the DLL with the standard remote `LoadLibraryW` thread pattern.
 8. Enumerate modules afterward.
 9. Report success only when the expected module path is present.
 
