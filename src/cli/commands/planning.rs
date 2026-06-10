@@ -1,5 +1,3 @@
-//! Inspection and planning command execution.
-
 use std::path::{Path, PathBuf};
 
 use crate::binary;
@@ -14,9 +12,9 @@ use crate::cli::output;
 pub(super) fn run_inspect(payload: &Path, json: bool) -> Result<()> {
     let inspection = binary::inspect(payload)?;
     if json {
-        output::print_json(&inspection)
+        output::error::print_json(&inspection)
     } else {
-        output::print_inspection(&inspection);
+        output::planning::print_inspection(&inspection);
         Ok(())
     }
 }
@@ -33,9 +31,9 @@ pub(super) fn run_override_plan(
     let prefix = resolve_prefix(app_id, prefix)?;
     let plan = decision::plan_override(payload, &prefix, app_id, dll_name)?;
     if json {
-        output::print_json(&plan)
+        output::error::print_json(&plan)
     } else {
-        output::print_override_plan(&plan);
+        output::planning::print_override_plan(&plan);
         Ok(())
     }
 }
@@ -51,9 +49,9 @@ pub(super) fn run_plan(
     let target = process::inspect(pid)?;
     let plan = decision::plan_running(payload, target, target_architecture)?;
     if json {
-        output::print_json(&plan)
+        output::error::print_json(&plan)
     } else {
-        output::print_load_plan(&plan);
+        output::planning::print_load_plan(&plan);
         Ok(())
     }
 }

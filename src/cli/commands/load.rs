@@ -1,5 +1,3 @@
-//! Load and inject command execution.
-
 use std::path::PathBuf;
 
 use crate::binary;
@@ -13,7 +11,6 @@ use crate::process;
 use super::common::{LoadMode, OutputMode};
 use crate::cli::output;
 
-/// Fully parsed inputs for the product-level injection command
 pub(super) struct InjectOptions {
     pub(super) payload: PathBuf,
     pub(super) pid: Option<u32>,
@@ -27,7 +24,6 @@ pub(super) struct InjectOptions {
     pub(super) output: OutputMode,
 }
 
-/// Fully parsed inputs for one helper-backed load
 pub(super) struct LoadOptions {
     pub(super) payload: PathBuf,
     pub(super) pid: u32,
@@ -39,7 +35,6 @@ pub(super) struct LoadOptions {
     pub(super) json: bool,
 }
 
-/// Runs target discovery followed by the existing validated load flow
 pub(super) fn run_inject(options: &InjectOptions) -> Result<()> {
     let target = inject::select_target_with_wait(
         options.pid,
@@ -47,8 +42,8 @@ pub(super) fn run_inject(options: &InjectOptions) -> Result<()> {
         options.process.as_deref(),
         options.wait_for,
     )?;
-    if options.output == OutputMode::Human {
-        output::print_selected_target(&target);
+    if options.output == OutputMode::Text {
+        output::target::print_selected_target(&target);
     }
     run_load_for_target(&TargetLoadOptions {
         payload_path: &options.payload,
@@ -62,7 +57,6 @@ pub(super) fn run_inject(options: &InjectOptions) -> Result<()> {
     })
 }
 
-/// Validates and prepares one helper-backed running-process load
 pub(super) fn run_load(options: &LoadOptions) -> Result<()> {
     let target = process::inspect(options.pid)?;
     run_load_for_target(&TargetLoadOptions {
@@ -77,7 +71,6 @@ pub(super) fn run_load(options: &LoadOptions) -> Result<()> {
     })
 }
 
-/// Fully resolved load inputs for one already selected target
 struct TargetLoadOptions<'a> {
     payload_path: &'a std::path::Path,
     target: crate::process::ProcessInfo,
@@ -89,7 +82,6 @@ struct TargetLoadOptions<'a> {
     json: bool,
 }
 
-/// Runs the shared validated helper flow for one already selected target
 fn run_load_for_target(options: &TargetLoadOptions<'_>) -> Result<()> {
     let payload = binary::inspect(options.payload_path)?;
     let plan =
@@ -110,18 +102,18 @@ fn run_load_for_target(options: &TargetLoadOptions<'_>) -> Result<()> {
     match options.mode {
         LoadMode::DryRun => {
             if options.json {
-                output::print_json(&helper_plan)
+                output::error::print_json(&helper_plan)
             } else {
-                output::print_load_dry_run(&helper_plan);
+                output::load::print_load_dry_run(&helper_plan);
                 Ok(())
             }
         }
         LoadMode::Execute => {
             let result = load::execute(&helper_plan, options.keep_run_files)?;
             if options.json {
-                output::print_json(&result)
+                output::error::print_json(&result)
             } else {
-                output::print_load_result(&result);
+                output::load::print_load_result(&result);
                 Ok(())
             }
         }

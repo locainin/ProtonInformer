@@ -1,5 +1,3 @@
-//! Diagnostic and discovery command execution.
-
 use crate::doctor;
 use crate::error::Result;
 use crate::install;
@@ -12,9 +10,9 @@ use crate::cli::output;
 pub(super) fn run_doctor(pid: Option<u32>, json: bool) -> Result<()> {
     let report = pid.map_or_else(|| Ok(doctor::run()), doctor::run_for_process)?;
     if json {
-        output::print_json(&report)
+        output::error::print_json(&report)
     } else {
-        output::print_doctor(report);
+        output::diagnostics::print_doctor(report);
         Ok(())
     }
 }
@@ -23,9 +21,9 @@ pub(super) fn run_doctor(pid: Option<u32>, json: bool) -> Result<()> {
 pub(super) fn run_steam_games(json: bool) -> Result<()> {
     let report = steam::discover_games();
     if json {
-        output::print_json(&report)
+        output::error::print_json(&report)
     } else {
-        output::print_steam_games(report);
+        output::inventory::print_steam_games(report);
         Ok(())
     }
 }
@@ -45,9 +43,9 @@ pub(super) fn run_verify_install(
         install::verify_all_static()?
     };
     if json {
-        output::print_json(&reports)
+        output::error::print_json(&reports)
     } else {
-        output::print_install_verifications(&reports);
+        output::diagnostics::print_install_verifications(&reports);
         Ok(())
     }
 }

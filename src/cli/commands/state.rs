@@ -1,5 +1,3 @@
-//! Managed run-state command execution.
-
 use std::path::Path;
 
 use crate::error::Result;
@@ -11,9 +9,9 @@ use crate::cli::output;
 pub(super) fn run_runs(prefix: Option<&Path>, json: bool) -> Result<()> {
     let report = prefix.map_or_else(runs::list, runs::list_for_prefix)?;
     if json {
-        output::print_json(&report)
+        output::error::print_json(&report)
     } else {
-        output::print_runs(&report);
+        output::state::print_runs(&report);
         Ok(())
     }
 }
@@ -30,9 +28,9 @@ pub(super) fn run_cleanup(
         |prefix| runs::cleanup_for_prefix(prefix, threshold),
     )?;
     if json {
-        output::print_json(&report)
+        output::error::print_json(&report)
     } else {
-        output::print_cleanup(&report);
+        output::state::print_cleanup(&report);
         Ok(())
     }
 }

@@ -1,5 +1,3 @@
-//! Target module and process inventory command execution.
-
 use crate::error::Result;
 use crate::helper_runtime;
 use crate::inject;
@@ -20,9 +18,9 @@ pub(super) fn run_modules(
     let mut result = helper_runtime::query_modules(&target)?;
     modules::apply(&mut result, filters);
     if json {
-        output::print_json(&result)
+        output::error::print_json(&result)
     } else {
-        output::print_modules(&result);
+        output::inventory::print_modules(&result);
         Ok(())
     }
 }
@@ -34,10 +32,10 @@ pub(super) fn run_processes(wine_only: bool, json: bool) -> Result<()> {
         processes.retain(|process| process.target_kind == TargetKind::WineProtonWindows);
     }
     if json {
-        output::print_json(&processes)
+        output::error::print_json(&processes)
     } else {
         for process in processes {
-            output::print_process(&process);
+            output::inventory::print_process(&process);
             println!();
         }
         Ok(())

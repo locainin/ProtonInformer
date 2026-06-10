@@ -1,5 +1,3 @@
-//! Parsed command execution for the CLI boundary.
-
 mod common;
 mod diagnostics;
 mod inventory;
@@ -19,7 +17,7 @@ use self::planning::{run_inspect, run_override_plan, run_plan};
 use self::state::{run_cleanup, run_runs};
 use super::args::{Cli, Command};
 
-/// Executes one fully parsed command.
+/// Executes one fully parsed command
 pub(super) fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Cleanup { older_than, prefix } => {
@@ -108,7 +106,7 @@ pub(super) fn run(cli: Cli) -> Result<()> {
     Ok(())
 }
 
-/// Preserves the original load-command validation message.
+/// Preserves the original load-command validation message
 fn requested_load_mode_for_load(dry_run: bool, yes: bool) -> Result<LoadMode> {
     if dry_run {
         Ok(LoadMode::DryRun)
