@@ -1,5 +1,7 @@
-//! Executable command and JSON contract checks.
+//! Executable command and JSON contract checks
 
+#[path = "cli/debug.rs"]
+mod debug;
 #[path = "cli/help.rs"]
 mod help;
 

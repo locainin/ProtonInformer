@@ -1,5 +1,3 @@
-//! Human-readable top-level and subcommand help checks.
-
 use std::process::Command;
 
 #[test]
@@ -11,6 +9,8 @@ fn top_level_help_lists_every_public_command() {
     let stdout = String::from_utf8(output.stdout).expect("help should be UTF-8");
 
     assert!(output.status.success());
+    assert!(stdout.contains("--debug"));
+    assert!(stdout.contains("--json"));
     for command in [
         "cleanup",
         "doctor",
