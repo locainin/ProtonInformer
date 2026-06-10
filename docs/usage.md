@@ -116,7 +116,10 @@ Select an exact Linux PID:
 ```
 
 Some DLLs expect their own path to be inside the game directory. For those, keep
-the original validated payload path instead of loading a private staged copy:
+the original validated payload path instead of loading a private staged copy.
+This mode is less isolated: dependency and path behavior stays tied to the live
+game directory. The default staged-copy mode is safer when the DLL does not need
+game-directory-relative lookup.
 
 ```bash
 ./proton-informer inject \

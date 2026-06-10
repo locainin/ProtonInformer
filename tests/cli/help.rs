@@ -83,6 +83,7 @@ fn inject_help_explains_simple_and_advanced_target_selection() {
     assert!(stdout.contains("--dry-run"));
     assert!(stdout.contains("--yes"));
     assert!(stdout.contains("--original-payload-path"));
+    assert!(stdout.contains("less-isolated original payload path"));
     assert!(output.stderr.is_empty());
 }
 
@@ -100,6 +101,7 @@ fn load_help_explains_dry_run_execution_and_diagnostic_retention() {
     assert!(stdout.contains("Execute the validated helper request for real"));
     assert!(stdout.contains("--keep-run-files"));
     assert!(stdout.contains("--original-payload-path"));
+    assert!(stdout.contains("less-isolated original payload path"));
     assert!(output.stderr.is_empty());
 }
 

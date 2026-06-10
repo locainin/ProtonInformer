@@ -11,7 +11,7 @@ use crate::{
 pub struct HelperOptions {
     /// Maximum operation duration.
     pub timeout_ms: u64,
-    /// Require module enumeration to confirm the loaded path.
+    /// Reserved load verification switch. Load requests must keep this true.
     pub verify_module_after_load: bool,
 }
 

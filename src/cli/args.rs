@@ -90,7 +90,7 @@ pub(super) enum Command {
         #[arg(long)]
         keep_run_files: bool,
 
-        /// Load the original payload path instead of a private staged copy
+        /// Load the less-isolated original payload path instead of a private staged copy
         #[arg(long)]
         original_payload_path: bool,
 
@@ -129,7 +129,7 @@ pub(super) enum Command {
         #[arg(long)]
         keep_run_files: bool,
 
-        /// Load the original payload path instead of a private staged copy
+        /// Load the less-isolated original payload path instead of a private staged copy
         #[arg(long)]
         original_payload_path: bool,
 
