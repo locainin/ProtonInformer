@@ -1,1 +1,7 @@
 /target
+
+# Local development fixtures and helper experiments that are not shipped.
+/fixtures/
+/scripts/
+/helpers/tests/
+/helpers/win-helper/README.md
