@@ -2,7 +2,8 @@
 
 use proton_informer_helper_protocol::{
     HelperError, HelperOperation, HelperOptions, HelperPayload, HelperRequest, HelperResponse,
-    HelperTarget, MAX_PAYLOAD_SIZE_BYTES, ProtocolArchitecture, SCHEMA_VERSION, TargetSelector,
+    HelperResult, HelperTarget, LoadLibraryResult, MAX_PAYLOAD_SIZE_BYTES, ProtocolArchitecture,
+    SCHEMA_VERSION, TargetSelector, WindowsModuleInfo,
 };
 
 fn load_request() -> HelperRequest {
@@ -129,6 +130,66 @@ fn helper_error_response_json_contract_is_stable() {
   "warnings": [
     "dependency preflight was incomplete"
   ]
+}"#
+    );
+}
+
+#[test]
+fn load_library_result_json_contract_includes_module_diff() {
+    let response = HelperResponse {
+        error: None,
+        ok: true,
+        operation: HelperOperation::LoadLibrary,
+        request_id: "request-123".into(),
+        result: Some(HelperResult::LoadLibrary(LoadLibraryResult {
+            already_loaded: false,
+            dependency_warnings: Vec::new(),
+            loaded_module_path: r"S:\common\Game\mod.dll".into(),
+            module_count_after: 143,
+            module_count_before: 142,
+            module_verified: true,
+            modules_added: vec![WindowsModuleInfo {
+                module_name: "mod.dll".into(),
+                windows_path: r"S:\common\Game\mod.dll".into(),
+            }],
+            process_name: "Game.exe".into(),
+            thread_exit_code_low32: Some(12_345),
+            windows_pid: 3_112,
+        })),
+        schema_version: SCHEMA_VERSION,
+        warnings: Vec::new(),
+    };
+    let json = serde_json::to_string_pretty(&response).expect("serialize response");
+
+    assert_eq!(
+        json,
+        r#"{
+  "error": null,
+  "ok": true,
+  "operation": "load_library",
+  "request_id": "request-123",
+  "result": {
+    "kind": "load_library",
+    "value": {
+      "dependency_warnings": [],
+      "loaded_module_path": "S:\\common\\Game\\mod.dll",
+      "module_verified": true,
+      "process_name": "Game.exe",
+      "thread_exit_code_low32": 12345,
+      "windows_pid": 3112,
+      "already_loaded": false,
+      "modules_added": [
+        {
+          "module_name": "mod.dll",
+          "windows_path": "S:\\common\\Game\\mod.dll"
+        }
+      ],
+      "module_count_before": 142,
+      "module_count_after": 143
+    }
+  },
+  "schema_version": 2,
+  "warnings": []
 }"#
     );
 }

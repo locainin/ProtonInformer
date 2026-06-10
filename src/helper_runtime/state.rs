@@ -39,7 +39,12 @@ fn stage_payload(payload: &BinaryInspection, run_directory: &Path) -> Result<Bin
             payload.path.display()
         ))
     })?;
-    let staged_path = run_directory.join(file_name);
+    let payload_directory = run_directory.join("payload");
+    fs::create_dir(&payload_directory).map_err(|error| Error::io(&payload_directory, error))?;
+    fs::set_permissions(&payload_directory, fs::Permissions::from_mode(0o700))
+        .map_err(|error| Error::io(&payload_directory, error))?;
+    validate_owner_directory(&payload_directory)?;
+    let staged_path = payload_directory.join(file_name);
     let mut source = File::open(&payload.path).map_err(|error| Error::io(&payload.path, error))?;
     let source_before = source
         .metadata()
@@ -147,10 +152,42 @@ fn create_owner_directory(root: &Path, request_id: &str) -> Result<PathBuf> {
     let directory = runs.join(request_id);
     for path in [root, runs.as_path(), directory.as_path()] {
         fs::create_dir_all(path).map_err(|source| Error::io(path, source))?;
+        validate_owner_directory_shape(path)?;
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))
             .map_err(|source| Error::io(path, source))?;
+        validate_owner_directory(path)?;
     }
     Ok(directory)
+}
+
+/// Verifies a created state directory without following symlinks.
+fn validate_owner_directory(path: &Path) -> Result<()> {
+    let metadata = validate_owner_directory_shape(path)?;
+    if metadata.mode() & 0o777 != 0o700 {
+        return Err(Error::Rejected(format!(
+            "state path is not mode 0700: {}",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
+/// Verifies directory type and owner before any permission changes.
+fn validate_owner_directory_shape(path: &Path) -> Result<fs::Metadata> {
+    let metadata = fs::symlink_metadata(path).map_err(|source| Error::io(path, source))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(Error::Rejected(format!(
+            "state path is not a real directory: {}",
+            path.display()
+        )));
+    }
+    if metadata.uid() != current_uid()? {
+        return Err(Error::Rejected(format!(
+            "state path is not owned by the current user: {}",
+            path.display()
+        )));
+    }
+    Ok(metadata)
 }
 
 /// Writes one owner-only JSON file without following a pre-existing file.
@@ -174,4 +211,19 @@ pub fn state_directory() -> PathBuf {
         .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))
         .unwrap_or_else(env::temp_dir)
         .join("proton-informer")
+}
+
+/// Reads the effective process UID from procfs without adding an FFI boundary.
+fn current_uid() -> Result<u32> {
+    let status = fs::read_to_string("/proc/self/status")
+        .map_err(|source| Error::io("/proc/self/status", source))?;
+    let line = status
+        .lines()
+        .find(|line| line.starts_with("Uid:"))
+        .ok_or_else(|| Error::Rejected("procfs did not report process UIDs".into()))?;
+    line.split_ascii_whitespace()
+        .nth(2)
+        .ok_or_else(|| Error::Rejected("procfs effective UID is missing".into()))?
+        .parse::<u32>()
+        .map_err(|_| Error::Rejected("procfs effective UID is invalid".into()))
 }

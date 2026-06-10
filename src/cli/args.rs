@@ -157,11 +157,11 @@ pub(super) enum Command {
         process: Option<String>,
 
         /// Case-insensitive module basename substring
-        #[arg(long)]
+        #[arg(long, value_parser = non_empty_string)]
         filter: Option<String>,
 
         /// Case-insensitive module basename or path substring
-        #[arg(long)]
+        #[arg(long, value_parser = non_empty_string)]
         contains: Option<String>,
     },
 
@@ -226,4 +226,13 @@ pub(super) enum Command {
         #[arg(long, conflicts_with = "arch")]
         pid: Option<u32>,
     },
+}
+
+/// Rejects blank filters while keeping absent filters as the show-all default.
+fn non_empty_string(value: &str) -> Result<String, String> {
+    if value.trim().is_empty() {
+        Err("filter value cannot be empty".into())
+    } else {
+        Ok(value.to_owned())
+    }
 }

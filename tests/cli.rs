@@ -23,6 +23,20 @@ fn json_argument_error_is_valid_json() {
 }
 
 #[test]
+fn blank_module_filter_is_rejected() {
+    let output = Command::new(env!("CARGO_BIN_EXE_proton-informer"))
+        .args(["--json", "modules", "--pid", "123", "--filter", ""])
+        .output()
+        .expect("CLI should start");
+
+    assert_eq!(output.status.code(), Some(2));
+    let error: Value =
+        serde_json::from_slice(&output.stderr).expect("argument error should be valid JSON");
+    assert_eq!(error["ok"], false);
+    assert_eq!(error["error"]["kind"], "cli_parse");
+}
+
+#[test]
 fn json_runtime_error_is_valid_json() {
     let output = Command::new(env!("CARGO_BIN_EXE_proton-informer"))
         .args(["--json", "inspect", "/definitely/missing/payload.dll"])

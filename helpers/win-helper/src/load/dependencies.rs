@@ -41,15 +41,6 @@ pub(super) fn dependency_warnings(
     Ok(warnings)
 }
 
-/// Adds bounded preflight findings to a load failure.
-pub(super) fn dependency_failure_suffix(warnings: &[String]) -> String {
-    if warnings.is_empty() {
-        String::new()
-    } else {
-        format!("; dependency preflight: {}", warnings.join("; "))
-    }
-}
-
 /// Checks Wine's Windows dependency search path.
 #[cfg(windows)]
 fn platform_dependency_visible(name: &str) -> Result<bool, HelperFailure> {

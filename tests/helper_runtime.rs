@@ -1,6 +1,7 @@
 //! Compatibility runtime selection checks.
 
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::fs::symlink;
 use std::path::PathBuf;
 
@@ -78,11 +79,28 @@ fn staged_payload_mode_uses_a_private_copy() {
             .expect("staged payload");
 
     assert_ne!(selected.path, source_path);
-    assert!(selected.path.starts_with(&run_directory));
+    assert_eq!(selected.path, run_directory.join("payload/payload.dll"));
     assert_eq!(
         fs::read(&selected.path).expect("staged bytes"),
         fs::read(&source_path).expect("source bytes")
     );
+}
+
+#[test]
+fn staged_payload_mode_does_not_collide_with_controller_files() {
+    let directory = tempdir().expect("temporary directory");
+    let run_directory = directory.path().join("run");
+    let source_path = directory.path().join("request.json");
+    fs::create_dir(&run_directory).expect("run directory");
+    write_minimal_pe_dll(&source_path);
+    let payload = binary::inspect(&source_path).expect("payload inspection");
+
+    let selected =
+        prepare_payload_for_request(&payload, &run_directory, PayloadPathMode::StagedCopy)
+            .expect("staged payload");
+
+    assert_eq!(selected.path, run_directory.join("payload/request.json"));
+    assert!(!run_directory.join("request.json").exists());
 }
 
 #[test]
@@ -105,6 +123,31 @@ fn original_payload_mode_keeps_the_source_path() {
             .count(),
         0
     );
+}
+
+#[test]
+fn request_directory_creation_matches_cleanup_safety_rules() {
+    let directory = tempdir().expect("temporary directory");
+    let prefix = directory.path().join("pfx");
+    let drive_c = prefix.join("drive_c");
+    fs::create_dir_all(prefix.join("dosdevices")).expect("dosdevices directory");
+    fs::create_dir_all(&drive_c).expect("drive C directory");
+    symlink("../drive_c", prefix.join("dosdevices/c:")).expect("C drive mapping");
+
+    let request_directory =
+        create_request_directory(&prefix, "6ed07ed4-51dd-4cb6-a003-57d6a48e7792")
+            .expect("mapped request directory");
+
+    for path in [
+        drive_c.join(".proton-informer"),
+        drive_c.join(".proton-informer/runs"),
+        request_directory,
+    ] {
+        let metadata = fs::symlink_metadata(&path).expect("state directory metadata");
+        assert!(metadata.is_dir());
+        assert!(!metadata.file_type().is_symlink());
+        assert_eq!(metadata.permissions().mode() & 0o777, 0o700);
+    }
 }
 
 fn write_minimal_pe_dll(path: &std::path::Path) {

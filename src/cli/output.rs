@@ -131,7 +131,23 @@ pub(super) fn print_load_result(result: &LoadExecutionResult) {
     {
         println!("  Windows PID:   {}", load.windows_pid);
         println!("  Process:       {}", load.process_name);
-        println!("  Module:        {}", load.loaded_module_path);
+        if load.already_loaded {
+            println!("  Already loaded:");
+        } else {
+            println!("  Loaded:");
+        }
+        println!("    {}", load.loaded_module_path);
+        println!("  Module diff:");
+        println!("    before: {}", load.module_count_before);
+        println!("    after:  {}", load.module_count_after);
+        println!("    added:");
+        if load.modules_added.is_empty() {
+            println!("      none");
+        } else {
+            for module in &load.modules_added {
+                println!("      + {}", module.windows_path);
+            }
+        }
         println!("  Verified:      {}", load.module_verified);
         for warning in &load.dependency_warnings {
             println!("  Warning:       {warning}");

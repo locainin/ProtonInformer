@@ -6,10 +6,10 @@ mod payload;
 mod platform;
 
 use proton_informer_helper_protocol::{
-    HelperOptions, HelperPayload, HelperTarget, LoadLibraryResult,
+    HelperOptions, HelperPayload, HelperTarget, LoadLibraryResult, WindowsModuleInfo,
 };
 
-use self::dependencies::{dependency_failure_suffix, dependency_warnings};
+use self::dependencies::dependency_warnings;
 use self::modules::{find_basename_conflict, find_module, module_matches_payload};
 use self::payload::{is_absolute_windows_path, validate_payload};
 use self::platform::{load_library, lock_payload, modules};
@@ -50,6 +50,9 @@ pub fn run(
             module.windows_path.clone(),
             None,
             dependency_warnings,
+            true,
+            &modules_before,
+            &modules_before,
         ));
     }
     if let Some(module) = find_basename_conflict(&modules_before, locked.canonical_path()) {
@@ -59,6 +62,9 @@ pub fn run(
                 module.windows_path.clone(),
                 None,
                 dependency_warnings,
+                true,
+                &modules_before,
+                &modules_before,
             ));
         }
         return Err(HelperFailure::ModuleConflict(format!(
@@ -92,13 +98,9 @@ pub fn run(
         return if thread.load_library_return == 0 {
             Err(HelperFailure::LoadLibraryRejected {
                 code: thread.windows_error,
-                message: format!(
-                    "LoadLibraryW failed with Windows error {}; likely causes include a missing \
-                     dependency, a dependency with the wrong architecture, or DllMain returning \
-                     FALSE{}",
-                    thread.windows_error,
-                    dependency_failure_suffix(&dependency_warnings)
-                ),
+                message: "LoadLibraryW returned NULL; target-side GetLastError is unavailable in \
+                          standard loader mode."
+                    .into(),
             })
         } else {
             Err(HelperFailure::ModuleVerificationFailed(format!(
@@ -114,6 +116,9 @@ pub fn run(
         loaded.windows_path.clone(),
         Some(thread.exit_code_low32),
         dependency_warnings,
+        false,
+        &modules_before,
+        &modules_after,
     ))
 }
 
@@ -138,13 +143,39 @@ fn result(
     loaded_module_path: String,
     thread_exit_code_low32: Option<u32>,
     dependency_warnings: Vec<String>,
+    already_loaded: bool,
+    modules_before: &[WindowsModuleInfo],
+    modules_after: &[WindowsModuleInfo],
 ) -> LoadLibraryResult {
+    let modules_added = modules_added(modules_before, modules_after);
     LoadLibraryResult {
+        already_loaded,
         dependency_warnings,
         loaded_module_path,
+        module_count_after: modules_after.len(),
+        module_count_before: modules_before.len(),
         module_verified: true,
+        modules_added,
         process_name: process.process_name.clone(),
         thread_exit_code_low32,
         windows_pid: process.windows_pid,
     }
+}
+
+/// Returns modules present after loading that were not visible beforehand.
+fn modules_added(
+    modules_before: &[WindowsModuleInfo],
+    modules_after: &[WindowsModuleInfo],
+) -> Vec<WindowsModuleInfo> {
+    modules_after
+        .iter()
+        .filter(|after| {
+            !modules_before.iter().any(|before| {
+                before
+                    .windows_path
+                    .eq_ignore_ascii_case(after.windows_path.as_str())
+            })
+        })
+        .cloned()
+        .collect()
 }

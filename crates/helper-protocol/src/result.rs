@@ -73,10 +73,18 @@ pub struct LoadLibraryResult {
     pub module_verified: bool,
     /// Resolved process basename.
     pub process_name: String,
-    /// Resolved Windows process identifier.
-    pub windows_pid: u32,
     /// Low 32 bits returned by the remote loader thread when one was started.
     pub thread_exit_code_low32: Option<u32>,
+    /// Resolved Windows process identifier.
+    pub windows_pid: u32,
+    /// Whether the requested module was already loaded before this request.
+    pub already_loaded: bool,
+    /// Modules observed after loading that were absent before loading.
+    pub modules_added: Vec<WindowsModuleInfo>,
+    /// Number of modules observed before loading.
+    pub module_count_before: usize,
+    /// Number of modules observed after loading.
+    pub module_count_after: usize,
 }
 
 /// Typed success payload.
