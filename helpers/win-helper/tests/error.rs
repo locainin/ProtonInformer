@@ -67,6 +67,19 @@ fn load_library_rejection_preserves_the_windows_error() {
     assert_eq!(error.windows_error, Some(126));
 }
 
+/// Confirms standard loader failures do not expose a fake error code
+#[test]
+fn load_library_rejection_omits_unavailable_windows_error() {
+    let error = HelperFailure::LoadLibraryRejected {
+        code: 0,
+        message: "LoadLibraryW returned NULL".into(),
+    }
+    .to_protocol_error();
+
+    assert_eq!(error.kind, "load_library_rejected");
+    assert_eq!(error.windows_error, None);
+}
+
 /// Confirms filesystem context remains actionable in protocol output
 #[test]
 fn io_failure_keeps_context_without_exposing_an_unstable_kind() {

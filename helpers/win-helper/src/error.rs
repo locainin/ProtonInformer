@@ -132,6 +132,7 @@ impl HelperFailure {
             Self::UnsupportedOperation(_) => ("unsupported_operation", None),
             #[cfg(windows)]
             Self::LoadFailed(_) => ("load_failed", None),
+            Self::LoadLibraryRejected { code: 0, .. } => ("load_library_rejected", None),
             Self::LoadLibraryRejected { code, .. } => ("load_library_rejected", Some(*code)),
             Self::ModuleConflict(_) => ("module_conflict", None),
             Self::ModuleVerificationFailed(_) => ("module_verification_failed", None),
