@@ -224,5 +224,10 @@ fn malformed_import_preflight_does_not_replace_windows_loader_failure() {
     assert!(!response.ok);
     let error = response.error.expect("loader error");
     assert_eq!(error.kind, "load_library_rejected");
-    assert!(error.message.contains("dependency preflight skipped:"));
+    assert_eq!(
+        error.message,
+        "LoadLibraryW returned NULL; target-side GetLastError is unavailable in standard loader \
+         mode."
+    );
+    assert_eq!(error.windows_error, None);
 }
