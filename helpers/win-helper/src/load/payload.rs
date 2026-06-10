@@ -1,4 +1,4 @@
-//! Payload path, identity, hash, and PE header validation.
+//! Payload path, identity, hash, and PE header validation
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -18,7 +18,7 @@ const IMAGE_FILE_MACHINE_I386: u16 = 0x014c;
 const PE32_MAGIC: u16 = 0x010b;
 const PE32_PLUS_MAGIC: u16 = 0x020b;
 
-/// Accepts absolute drive or UNC paths without relative parent components.
+/// Accepts absolute drive or UNC paths without relative parent components
 pub(super) fn is_absolute_windows_path(path: &str) -> bool {
     let bytes = path.as_bytes();
     let drive_absolute = bytes.len() >= 3
@@ -34,7 +34,7 @@ pub(super) fn is_absolute_windows_path(path: &str) -> bool {
         && !path.split(['\\', '/']).any(|component| component == "..")
 }
 
-/// Confirms the helper sees the same immutable payload facts as the controller.
+/// Confirms the helper sees the same immutable payload facts as the controller
 pub(super) fn validate_payload(
     payload: &HelperPayload,
     canonical_path: &str,
@@ -66,7 +66,7 @@ pub(super) fn validate_payload(
     Ok(())
 }
 
-/// Reads only the DOS and COFF headers needed to prove PE DLL identity.
+/// Reads only the DOS and COFF headers needed to prove PE DLL identity
 fn validate_pe_dll(
     path: &Path,
     expected_architecture: ProtocolArchitecture,
@@ -144,7 +144,7 @@ fn validate_pe_dll(
     Ok(())
 }
 
-/// Hashes exactly one expected payload length with bounded memory.
+/// Hashes exactly one expected payload length with bounded memory
 pub(super) fn sha256_file(path: &Path, expected_size: u64) -> Result<String, HelperFailure> {
     let mut file =
         File::open(path).map_err(|source| HelperFailure::io("unable to open payload", source))?;

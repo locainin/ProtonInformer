@@ -1,4 +1,4 @@
-//! Non-mutating helper self-test.
+//! Non-mutating helper self-test
 
 use proton_informer_helper_protocol::{
     HelperCapability, HelperResult, HelperVersion, ProtocolArchitecture, SelfTestCheck,
@@ -7,7 +7,7 @@ use proton_informer_helper_protocol::{
 
 use crate::error::HelperFailure;
 
-/// Runs parser, process, and module checks without modifying another process.
+/// Runs parser, process, and module checks without modifying another process
 pub fn run() -> Result<SelfTestResult, HelperFailure> {
     let version = crate::protocol::version();
     let json = serde_json::to_vec(&HelperResult::Version(version.clone()))?;
@@ -82,7 +82,7 @@ pub fn run() -> Result<SelfTestResult, HelperFailure> {
     })
 }
 
-/// Returns the exact capability set expected for this platform build.
+/// Returns the exact capability set expected for this platform build
 #[cfg(windows)]
 fn expected_capabilities() -> Vec<HelperCapability> {
     vec![
@@ -94,13 +94,13 @@ fn expected_capabilities() -> Vec<HelperCapability> {
     ]
 }
 
-/// Returns the non-mutating capability set for host-native smoke builds.
+/// Returns the non-mutating capability set for host-native smoke builds
 #[cfg(not(windows))]
 fn expected_capabilities() -> Vec<HelperCapability> {
     vec![HelperCapability::Version, HelperCapability::SelfTest]
 }
 
-/// Returns the architecture selected by this compilation target.
+/// Returns the architecture selected by this compilation target
 const fn compile_time_architecture() -> ProtocolArchitecture {
     #[cfg(target_arch = "x86_64")]
     {

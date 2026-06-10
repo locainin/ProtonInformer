@@ -1,4 +1,4 @@
-//! Safe inspection and cleanup of controller-managed run state.
+//! Safe inspection and cleanup of controller-managed run state
 
 use std::fs;
 use std::os::unix::fs::MetadataExt;
@@ -10,65 +10,65 @@ use uuid::Uuid;
 
 use crate::error::{Error, Result};
 
-/// One validated run directory.
+/// One validated run directory
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunState {
-    /// Seconds elapsed since the directory modification time.
+    /// Seconds elapsed since the directory modification time
     pub age_seconds: u64,
-    /// Request UUID represented by the directory.
+    /// Request UUID represented by the directory
     pub request_id: String,
-    /// Managed run directory path.
+    /// Managed run directory path
     pub path: PathBuf,
 }
 
-/// Run-state listing with retained validation warnings.
+/// Run-state listing with retained validation warnings
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunStateReport {
-    /// State root inspected by this operation.
+    /// State root inspected by this operation
     pub root: PathBuf,
-    /// Valid owner-controlled run directories.
+    /// Valid owner-controlled run directories
     pub runs: Vec<RunState>,
-    /// Entries skipped because they were not safe managed state.
+    /// Entries skipped because they were not safe managed state
     pub warnings: Vec<String>,
 }
 
-/// Cleanup result for one managed state root.
+/// Cleanup result for one managed state root
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CleanupReport {
-    /// Number of run directories removed.
+    /// Number of run directories removed
     pub removed: usize,
-    /// State root inspected by this operation.
+    /// State root inspected by this operation
     pub root: PathBuf,
-    /// Entries skipped because they were not safe managed state.
+    /// Entries skipped because they were not safe managed state
     pub warnings: Vec<String>,
 }
 
-/// Lists run state from the configured XDG or HOME state directory.
+/// Lists run state from the configured XDG or HOME state directory
 ///
 /// # Errors
 ///
-/// Returns an error when the managed root cannot be inspected safely.
+/// Returns an error when the managed root cannot be inspected safely
 pub fn list() -> Result<RunStateReport> {
     list_in(&crate::helper_runtime::state_directory())
 }
 
-/// Lists fallback run state stored inside one Wine prefix.
+/// Lists fallback run state stored inside one Wine prefix
 ///
 /// # Errors
 ///
 /// Returns an error when the prefix has no usable C: mapping or its managed
-/// state cannot be inspected safely.
+/// state cannot be inspected safely
 pub fn list_for_prefix(prefix: &Path) -> Result<RunStateReport> {
     list_in(&prefix_state_directory(prefix)?)
 }
 
-/// Lists run state under one explicit root.
+/// Lists run state under one explicit root
 ///
-/// This boundary supports deterministic tests and administrative callers.
+/// This boundary supports deterministic tests and administrative callers
 ///
 /// # Errors
 ///
-/// Returns an error when the root or runs directory cannot be inspected.
+/// Returns an error when the root or runs directory cannot be inspected
 pub fn list_in(root: &Path) -> Result<RunStateReport> {
     let runs_root = root.join("runs");
     if !runs_root.exists() {
@@ -98,30 +98,30 @@ pub fn list_in(root: &Path) -> Result<RunStateReport> {
     })
 }
 
-/// Removes safe managed runs older than an optional threshold.
+/// Removes safe managed runs older than an optional threshold
 ///
 /// # Errors
 ///
-/// Returns an error when listing or deleting a validated run fails.
+/// Returns an error when listing or deleting a validated run fails
 pub fn cleanup(older_than: Option<Duration>) -> Result<CleanupReport> {
     cleanup_in(&crate::helper_runtime::state_directory(), older_than)
 }
 
-/// Removes fallback run state stored inside one Wine prefix.
+/// Removes fallback run state stored inside one Wine prefix
 ///
 /// # Errors
 ///
 /// Returns an error when the prefix has no usable C: mapping or validated run
-/// state cannot be deleted.
+/// state cannot be deleted
 pub fn cleanup_for_prefix(prefix: &Path, older_than: Option<Duration>) -> Result<CleanupReport> {
     cleanup_in(&prefix_state_directory(prefix)?, older_than)
 }
 
-/// Removes safe managed runs under one explicit root.
+/// Removes safe managed runs under one explicit root
 ///
 /// # Errors
 ///
-/// Returns an error when listing or deleting a validated run fails.
+/// Returns an error when listing or deleting a validated run fails
 pub fn cleanup_in(root: &Path, older_than: Option<Duration>) -> Result<CleanupReport> {
     let report = list_in(root)?;
     let current_uid = current_uid()?;
@@ -150,16 +150,16 @@ pub fn cleanup_in(root: &Path, older_than: Option<Duration>) -> Result<CleanupRe
     })
 }
 
-/// Parses compact cleanup ages such as `30m`, `12h`, or `7d`.
+/// Parses compact cleanup ages such as `30m`, `12h`, or `7d`
 ///
 /// # Errors
 ///
-/// Returns an error for missing, zero, overflowing, or unknown units.
+/// Returns an error for missing, zero, overflowing, or unknown units
 pub fn parse_age(value: &str) -> Result<Duration> {
     crate::duration::parse_compact(value, "age")
 }
 
-/// Resolves the same prefix-local state root used by request planning.
+/// Resolves the same prefix-local state root used by request planning
 fn prefix_state_directory(prefix: &Path) -> Result<PathBuf> {
     let c_drive = crate::wine::drive_mappings(prefix)?
         .into_iter()
@@ -173,7 +173,7 @@ fn prefix_state_directory(prefix: &Path) -> Result<PathBuf> {
     Ok(c_drive.join(".proton-informer"))
 }
 
-/// Validates the owner-only managed runs root.
+/// Validates the owner-only managed runs root
 fn validate_root(runs_root: &Path) -> Result<()> {
     let metadata =
         fs::symlink_metadata(runs_root).map_err(|source| Error::io(runs_root, source))?;
@@ -192,7 +192,7 @@ fn validate_root(runs_root: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Validates one direct UUID directory without following symlinks.
+/// Validates one direct UUID directory without following symlinks
 fn inspect_entry(path: &Path, current_uid: u32, now: SystemTime) -> Result<RunState> {
     let name = path
         .file_name()
@@ -227,7 +227,7 @@ fn inspect_entry(path: &Path, current_uid: u32, now: SystemTime) -> Result<RunSt
     })
 }
 
-/// Reads the effective process UID from procfs without adding an FFI boundary.
+/// Reads the effective process UID from procfs without adding an FFI boundary
 fn current_uid() -> Result<u32> {
     let status = fs::read_to_string("/proc/self/status")
         .map_err(|source| Error::io("/proc/self/status", source))?;

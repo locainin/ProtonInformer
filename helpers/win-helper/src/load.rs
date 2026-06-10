@@ -1,4 +1,4 @@
-//! Safe remote load flow built on the isolated Windows API boundary.
+//! Safe remote load flow built on the isolated Windows API boundary
 
 mod dependencies;
 mod modules;
@@ -15,12 +15,12 @@ use self::payload::{is_absolute_windows_path, validate_payload};
 use self::platform::{load_library, lock_payload, modules};
 use crate::error::HelperFailure;
 
-/// Validates, loads, and verifies one DLL in the resolved target.
+/// Validates, loads, and verifies one DLL in the resolved target
 ///
 /// # Errors
 ///
 /// Returns an error when payload validation, process identity checks, remote
-/// loading, or final module verification fails.
+/// loading, or final module verification fails
 pub fn run(
     target: &HelperTarget,
     payload: &HelperPayload,
@@ -122,11 +122,11 @@ pub fn run(
     ))
 }
 
-/// Runs dependency preflight without making advisory checks authoritative.
+/// Runs dependency preflight without making advisory checks authoritative
 ///
 /// A valid payload may use PE layouts or Wine search behavior that the bounded
 /// preflight does not understand. Windows remains the final loader authority,
-/// so preflight failures become visible warnings instead of blocking the load.
+/// so preflight failures become visible warnings instead of blocking the load
 #[must_use]
 fn advisory_dependency_warnings(
     payload_path: &str,
@@ -137,7 +137,7 @@ fn advisory_dependency_warnings(
         .unwrap_or_else(|error| vec![format!("dependency preflight skipped: {error}")])
 }
 
-/// Builds one verified result without exposing internal process types.
+/// Builds one verified result without exposing internal process types
 fn result(
     process: &proton_informer_helper_protocol::WindowsProcessInfo,
     loaded_module_path: String,
@@ -162,7 +162,7 @@ fn result(
     }
 }
 
-/// Returns modules present after loading that were not visible beforehand.
+/// Returns modules present after loading that were not visible beforehand
 fn modules_added(
     modules_before: &[WindowsModuleInfo],
     modules_after: &[WindowsModuleInfo],

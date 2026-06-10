@@ -1,7 +1,7 @@
-//! Linux process discovery with Wine and Proton runtime evidence.
+//! Linux process discovery with Wine and Proton runtime evidence
 //!
 //! Public models remain stable here while `/proc` reading and classification
-//! logic stay in focused internal modules.
+//! logic stay in focused internal modules
 
 mod evidence;
 mod model;

@@ -1,4 +1,4 @@
-//! Compatibility runtime selection checks.
+//! Compatibility runtime selection checks
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -15,7 +15,7 @@ use proton_informer::process::{
 use proton_informer::types::Architecture;
 use tempfile::tempdir;
 
-/// Builds a minimal Wine process model for runtime selection.
+/// Builds a minimal Wine process model for runtime selection
 fn target() -> ProcessInfo {
     ProcessInfo {
         classification_confidence: ClassificationConfidence::High,

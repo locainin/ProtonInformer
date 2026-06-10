@@ -1,14 +1,14 @@
-//! Compact duration parsing shared by bounded CLI operations.
+//! Compact duration parsing shared by bounded CLI operations
 
 use std::time::Duration;
 
 use crate::error::{Error, Result};
 
-/// Parses a positive duration using seconds, minutes, hours, or days.
+/// Parses a positive duration using seconds, minutes, hours, or days
 ///
 /// # Errors
 ///
-/// Returns an error for missing, zero, overflowing, or unknown units.
+/// Returns an error for missing, zero, overflowing, or unknown units
 pub fn parse_compact(value: &str, field: &str) -> Result<Duration> {
     let value = value.trim();
     let split = value

@@ -1,4 +1,4 @@
-//! Linux-side construction of shared helper requests.
+//! Linux-side construction of shared helper requests
 
 use std::fs::File;
 use std::io::Read;
@@ -17,12 +17,12 @@ use sha2::{Digest, Sha256};
 
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
-/// Builds a validated load request from inspected controller data.
+/// Builds a validated load request from inspected controller data
 ///
 /// # Errors
 ///
 /// Returns an error when target identity, prefix mappings, payload hashing, or
-/// shared protocol validation fails.
+/// shared protocol validation fails
 pub fn load_request(
     payload: &BinaryInspection,
     target: &ProcessInfo,
@@ -67,11 +67,11 @@ pub fn load_request(
     Ok(request)
 }
 
-/// Builds an exact module-enumeration request for a correlated Windows target.
+/// Builds an exact module-enumeration request for a correlated Windows target
 ///
 /// # Errors
 ///
-/// Returns an error when the target identity is incomplete or validation fails.
+/// Returns an error when the target identity is incomplete or validation fails
 pub fn query_modules_request(
     target: &ProcessInfo,
     windows_target: &proton_informer_helper_protocol::WindowsProcessInfo,
@@ -92,11 +92,11 @@ pub fn query_modules_request(
     Ok(request)
 }
 
-/// Builds a process-enumeration request used before selecting a Windows PID.
+/// Builds a process-enumeration request used before selecting a Windows PID
 ///
 /// # Errors
 ///
-/// Returns an error if the generated protocol request is invalid.
+/// Returns an error if the generated protocol request is invalid
 pub fn query_processes_request(request_id: String) -> Result<HelperRequest> {
     let request = HelperRequest {
         operation: HelperOperation::QueryProcesses,
@@ -112,7 +112,7 @@ pub fn query_processes_request(request_id: String) -> Result<HelperRequest> {
     Ok(request)
 }
 
-/// Maps controller architecture values into the stable helper protocol.
+/// Maps controller architecture values into the stable helper protocol
 #[must_use]
 pub const fn protocol_architecture(architecture: Architecture) -> ProtocolArchitecture {
     match architecture {
@@ -124,7 +124,7 @@ pub const fn protocol_architecture(architecture: Architecture) -> ProtocolArchit
     }
 }
 
-/// Chooses the strongest available process basename.
+/// Chooses the strongest available process basename
 fn target_process_name(target: &ProcessInfo) -> Result<String> {
     let name = target
         .guest_executable
@@ -145,7 +145,7 @@ fn target_process_name(target: &ProcessInfo) -> Result<String> {
     Ok(name.to_owned())
 }
 
-/// Builds the strongest helper target from controller and Windows evidence.
+/// Builds the strongest helper target from controller and Windows evidence
 fn exact_helper_target(
     target: &ProcessInfo,
     windows_target: &proton_informer_helper_protocol::WindowsProcessInfo,
@@ -177,7 +177,7 @@ fn exact_helper_target(
     })
 }
 
-/// Hashes exactly the inspected payload size with fixed-size buffered reads.
+/// Hashes exactly the inspected payload size with fixed-size buffered reads
 fn sha256_file(path: &Path, expected_size: u64) -> Result<String> {
     let mut file = File::open(path).map_err(|source| Error::io(path, source))?;
     let mut hasher = Sha256::new();

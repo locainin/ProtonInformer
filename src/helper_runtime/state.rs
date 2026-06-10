@@ -1,4 +1,4 @@
-//! Owner-only payload staging and request state management.
+//! Owner-only payload staging and request state management
 
 use std::env;
 use std::fs::{self, DirBuilder, File, OpenOptions};
@@ -105,7 +105,7 @@ fn stage_payload(payload: &BinaryInspection, run_directory: &Path) -> Result<Bin
     Ok(staged)
 }
 
-/// Compares stable Linux file identity and change indicators around one copy.
+/// Compares stable Linux file identity and change indicators around one copy
 fn same_file_snapshot(before: &fs::Metadata, after: &fs::Metadata) -> bool {
     before.dev() == after.dev()
         && before.ino() == after.ino()
@@ -116,13 +116,13 @@ fn same_file_snapshot(before: &fs::Metadata, after: &fs::Metadata) -> bool {
         && before.ctime_nsec() == after.ctime_nsec()
 }
 
-/// Creates one owner-only run directory.
-/// Creates a request directory visible through the selected prefix mappings.
+/// Creates one owner-only run directory
+/// Creates a request directory visible through the selected prefix mappings
 ///
 /// # Errors
 ///
 /// Returns an error for invalid request identifiers, filesystem failures, or
-/// prefixes with neither a mapped state directory nor a configured C: drive.
+/// prefixes with neither a mapped state directory nor a configured C: drive
 pub fn create_request_directory(prefix: &Path, request_id: &str) -> Result<PathBuf> {
     Uuid::parse_str(request_id)
         .map_err(|error| Error::InvalidInput(format!("invalid request UUID: {error}")))?;
@@ -146,7 +146,7 @@ pub fn create_request_directory(prefix: &Path, request_id: &str) -> Result<PathB
     create_owner_directory(&c_root.join(".proton-informer"), request_id)
 }
 
-/// Creates owner-only root, runs, and request directory levels.
+/// Creates owner-only root, runs, and request directory levels
 fn create_owner_directory(root: &Path, request_id: &str) -> Result<PathBuf> {
     let runs = root.join("runs");
     let directory = runs.join(request_id);
@@ -160,7 +160,7 @@ fn create_owner_directory(root: &Path, request_id: &str) -> Result<PathBuf> {
     Ok(directory)
 }
 
-/// Creates one missing directory tree with owner-only modes from creation.
+/// Creates one missing directory tree with owner-only modes from creation
 fn create_private_directory(path: &Path) -> Result<()> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => return Ok(()),
@@ -189,7 +189,7 @@ fn create_private_directory(path: &Path) -> Result<()> {
     }
 }
 
-/// Verifies a created state directory without following symlinks.
+/// Verifies a created state directory without following symlinks
 fn validate_owner_directory(path: &Path) -> Result<()> {
     let metadata = validate_owner_directory_shape(path)?;
     if metadata.mode() & 0o777 != 0o700 {
@@ -201,7 +201,7 @@ fn validate_owner_directory(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Verifies directory type and owner before any permission changes.
+/// Verifies directory type and owner before any permission changes
 fn validate_owner_directory_shape(path: &Path) -> Result<fs::Metadata> {
     let metadata = fs::symlink_metadata(path).map_err(|source| Error::io(path, source))?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -219,7 +219,7 @@ fn validate_owner_directory_shape(path: &Path) -> Result<fs::Metadata> {
     Ok(metadata)
 }
 
-/// Writes one owner-only JSON file without following a pre-existing file.
+/// Writes one owner-only JSON file without following a pre-existing file
 pub(super) fn write_private_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
     let bytes = serde_json::to_vec_pretty(value).map_err(Error::from)?;
     let mut file = OpenOptions::new()
@@ -233,7 +233,7 @@ pub(super) fn write_private_json<T: Serialize>(path: &Path, value: &T) -> Result
         .map_err(|source| Error::io(path, source))
 }
 
-/// Returns the state root without assuming one user's home path.
+/// Returns the state root without assuming one user's home path
 pub fn state_directory() -> PathBuf {
     env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
@@ -242,7 +242,7 @@ pub fn state_directory() -> PathBuf {
         .join("proton-informer")
 }
 
-/// Reads the effective process UID from procfs without adding an FFI boundary.
+/// Reads the effective process UID from procfs without adding an FFI boundary
 fn current_uid() -> Result<u32> {
     let status = fs::read_to_string("/proc/self/status")
         .map_err(|source| Error::io("/proc/self/status", source))?;

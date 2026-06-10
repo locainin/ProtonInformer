@@ -1,4 +1,4 @@
-//! Helper and command discovery.
+//! Helper and command discovery
 
 use proton_informer::helper;
 use proton_informer::types::Architecture;

@@ -1,4 +1,4 @@
-//! Safe Windows process enumeration and target resolution.
+//! Safe Windows process enumeration and target resolution
 
 use proton_informer_helper_protocol::{
     HelperTarget, ProcessQueryResult, TargetSelector, WindowsProcessInfo,
@@ -9,14 +9,14 @@ use crate::error::HelperFailure;
 #[cfg(not(windows))]
 use proton_informer_helper_protocol::ProtocolArchitecture;
 
-/// Enumerates every visible Windows process.
+/// Enumerates every visible Windows process
 pub fn query_processes() -> Result<ProcessQueryResult, HelperFailure> {
     Ok(ProcessQueryResult {
         processes: platform_processes()?,
     })
 }
 
-/// Resolves one target using strict ambiguity rules.
+/// Resolves one target using strict ambiguity rules
 pub fn resolve(target: &HelperTarget) -> Result<WindowsProcessInfo, HelperFailure> {
     let processes = platform_processes()?;
     let expected_name = &target.expected_process_name;
@@ -74,7 +74,7 @@ pub fn resolve(target: &HelperTarget) -> Result<WindowsProcessInfo, HelperFailur
     }
 }
 
-/// Compares process identity fields requested by the controller.
+/// Compares process identity fields requested by the controller
 fn identity_matches(
     process: &WindowsProcessInfo,
     target: &HelperTarget,
@@ -101,13 +101,13 @@ fn identity_matches(
         .is_some_and(|(actual, expected)| actual.eq_ignore_ascii_case(expected))
 }
 
-/// Calls the platform implementation.
+/// Calls the platform implementation
 #[cfg(windows)]
 fn platform_processes() -> Result<Vec<WindowsProcessInfo>, HelperFailure> {
     crate::winapi::processes()
 }
 
-/// Refuses to emulate Windows process behavior on a non-Windows build.
+/// Refuses to emulate Windows process behavior on a non-Windows build
 #[cfg(not(windows))]
 fn platform_processes() -> Result<Vec<WindowsProcessInfo>, HelperFailure> {
     let _ = ProtocolArchitecture::Unknown;

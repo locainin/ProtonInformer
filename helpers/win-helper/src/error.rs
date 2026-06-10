@@ -1,106 +1,106 @@
-//! Helper-local errors and protocol conversion.
+//! Helper-local errors and protocol conversion
 
 use proton_informer_helper_protocol::HelperError;
 use thiserror::Error;
 
-/// Internal helper failure.
+/// Internal helper failure
 #[derive(Debug, Error)]
 pub enum HelperFailure {
-    /// Target selector matched more than one process.
+    /// Target selector matched more than one process
     #[error("{0}")]
     AmbiguousTarget(String),
-    /// Filesystem operation failed.
+    /// Filesystem operation failed
     #[error("{context}: {source}")]
     Io {
-        /// Operation context.
+        /// Operation context
         context: String,
-        /// Underlying error.
+        /// Underlying error
         #[source]
         source: std::io::Error,
     },
-    /// JSON parsing or serialization failed.
+    /// JSON parsing or serialization failed
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
-    /// Request bytes could not be parsed into the shared protocol.
+    /// Request bytes could not be parsed into the shared protocol
     #[error("request protocol parse failed: {0}")]
     ProtocolParseFailed(String),
-    /// No process matched the target selector.
+    /// No process matched the target selector
     #[error("{0}")]
     TargetNotFound(String),
-    /// The selected process identity changed between validation and mutation.
+    /// The selected process identity changed between validation and mutation
     #[error("{0}")]
     TargetIdentityChanged(String),
-    /// Helper command line is invalid.
+    /// Helper command line is invalid
     #[error("usage error: {0}")]
     Usage(String),
-    /// Request failed semantic validation.
+    /// Request failed semantic validation
     #[error("invalid request: {0}")]
     Validation(String),
-    /// Payload and target processor architectures do not match.
+    /// Payload and target processor architectures do not match
     #[error("{0}")]
     ArchitectureMismatch(String),
-    /// Windows API call failed.
+    /// Windows API call failed
     #[error("{operation} failed with Windows error {code}")]
     #[cfg(windows)]
     Windows {
-        /// Windows error code.
+        /// Windows error code
         code: u32,
-        /// API operation.
+        /// API operation
         operation: &'static str,
     },
-    /// Operation is not implemented by this helper build.
+    /// Operation is not implemented by this helper build
     #[error("{0}")]
     #[cfg(not(windows))]
     UnsupportedOperation(String),
-    /// Remote loader returned failure without a transferable Windows error.
+    /// Remote loader returned failure without a transferable Windows error
     #[error("{0}")]
     #[cfg(windows)]
     LoadFailed(String),
-    /// `LoadLibraryW` rejected the DLL and returned a target-side error.
+    /// `LoadLibraryW` rejected the DLL and returned a target-side error
     #[error("{message}")]
     LoadLibraryRejected {
-        /// Error captured in the target immediately after `LoadLibraryW`.
+        /// Error captured in the target immediately after `LoadLibraryW`
         code: u32,
-        /// Actionable loader diagnostic.
+        /// Actionable loader diagnostic
         message: String,
     },
-    /// A different module with the requested basename is already loaded.
+    /// A different module with the requested basename is already loaded
     #[error("{0}")]
     ModuleConflict(String),
-    /// Remote loading completed without exact module-path verification.
+    /// Remote loading completed without exact module-path verification
     #[error("{0}")]
     ModuleVerificationFailed(String),
-    /// Payload content or identity changed during validation.
+    /// Payload content or identity changed during validation
     #[error("{0}")]
     PayloadChanged(String),
-    /// Windows payload path is invalid or cannot be canonicalized.
+    /// Windows payload path is invalid or cannot be canonicalized
     #[error("{0}")]
     InvalidWindowsPath(String),
-    /// The payload path cannot be opened inside the selected Wine prefix.
+    /// The payload path cannot be opened inside the selected Wine prefix
     #[error("{message}")]
     #[cfg(windows)]
     PayloadUnavailable {
-        /// Windows error captured from the failed path operation.
+        /// Windows error captured from the failed path operation
         code: u32,
-        /// Actionable path diagnostic.
+        /// Actionable path diagnostic
         message: String,
     },
-    /// Remote loader did not finish before the request deadline.
+    /// Remote loader did not finish before the request deadline
     #[error(
         "remote load exceeded {timeout_ms} ms; remote allocation retained: \
          {remote_allocation_retained}"
     )]
     #[cfg(windows)]
     LoadTimeout {
-        /// Request deadline in milliseconds.
+        /// Request deadline in milliseconds
         timeout_ms: u64,
-        /// Memory remains allocated because the remote thread may still use it.
+        /// Memory remains allocated because the remote thread may still use it
         remote_allocation_retained: bool,
     },
 }
 
 impl HelperFailure {
-    /// Builds an I/O failure with stable context.
+    /// Builds an I/O failure with stable context
     pub fn io(context: impl Into<String>, source: std::io::Error) -> Self {
         Self::Io {
             context: context.into(),
@@ -108,12 +108,12 @@ impl HelperFailure {
         }
     }
 
-    /// Builds a usage failure.
+    /// Builds a usage failure
     pub fn usage(message: impl Into<String>) -> Self {
         Self::Usage(message.into())
     }
 
-    /// Converts the failure into the shared response model.
+    /// Converts the failure into the shared response model
     #[must_use]
     pub fn to_protocol_error(&self) -> HelperError {
         let (kind, windows_error) = match self {

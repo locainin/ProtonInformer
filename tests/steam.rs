@@ -1,4 +1,4 @@
-//! Steam discovery invariants.
+//! Steam discovery invariants
 
 use proton_informer::steam;
 

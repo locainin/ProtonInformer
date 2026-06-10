@@ -1,4 +1,4 @@
-//! Readiness checks for Steam, Wine, helpers, `/proc`, and state storage.
+//! Readiness checks for Steam, Wine, helpers, `/proc`, and state storage
 
 use std::env;
 use std::fs;
@@ -40,17 +40,17 @@ pub struct DoctorReport {
     pub wine_helper_x86_64: CapabilityReadiness,
 }
 
-/// Readiness of one independently usable capability.
+/// Readiness of one independently usable capability
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CapabilityReadiness {
-    /// Required checks passed.
+    /// Required checks passed
     Ready,
-    /// One or more required checks did not pass.
+    /// One or more required checks did not pass
     Unavailable,
 }
 
-/// Runs local checks without attaching to or changing a target process.
+/// Runs local checks without attaching to or changing a target process
 #[must_use]
 pub fn run() -> DoctorReport {
     let mut checks = Vec::new();
@@ -129,12 +129,12 @@ pub fn run() -> DoctorReport {
     }
 }
 
-/// Runs static checks plus live helper diagnostics in one target runtime.
+/// Runs static checks plus live helper diagnostics in one target runtime
 ///
 /// # Errors
 ///
 /// Returns an error when the target cannot be inspected or is not a Wine or
-/// Proton process owned by the current user.
+/// Proton process owned by the current user
 pub fn run_for_process(pid: u32) -> Result<DoctorReport> {
     let target = process::inspect(pid)?;
     if target.target_kind != process::TargetKind::WineProtonWindows {
@@ -175,7 +175,7 @@ pub fn run_for_process(pid: u32) -> Result<DoctorReport> {
     Ok(report)
 }
 
-/// Executes and validates `--version-json` inside the selected runtime.
+/// Executes and validates `--version-json` inside the selected runtime
 fn version_diagnostic(target: &process::ProcessInfo, architecture: Architecture) -> DoctorCheck {
     diagnostic_output(target, architecture, "--version-json").map_or_else(
         diagnostic_failure("helper_version_runtime"),
@@ -211,7 +211,7 @@ fn version_diagnostic(target: &process::ProcessInfo, architecture: Architecture)
     )
 }
 
-/// Executes and validates `--self-test-json` inside the selected runtime.
+/// Executes and validates `--self-test-json` inside the selected runtime
 fn self_test_diagnostic(target: &process::ProcessInfo, architecture: Architecture) -> DoctorCheck {
     diagnostic_output(target, architecture, "--self-test-json").map_or_else(
         diagnostic_failure("helper_self_test_runtime"),
@@ -241,7 +241,7 @@ fn self_test_diagnostic(target: &process::ProcessInfo, architecture: Architectur
     )
 }
 
-/// Runs one trusted diagnostic command with bounded output and time.
+/// Runs one trusted diagnostic command with bounded output and time
 fn diagnostic_output(
     target: &process::ProcessInfo,
     architecture: Architecture,
@@ -259,7 +259,7 @@ fn diagnostic_output(
     Ok(output.stdout)
 }
 
-/// Converts one diagnostic error into a named failed check.
+/// Converts one diagnostic error into a named failed check
 fn diagnostic_failure(name: &'static str) -> impl FnOnce(Error) -> DoctorCheck {
     move |error| DoctorCheck {
         name: name.into(),

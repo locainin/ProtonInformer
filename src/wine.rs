@@ -1,20 +1,20 @@
-//! Prefix-aware Wine path conversion.
+//! Prefix-aware Wine path conversion
 //!
-//! Wine prefixes define drive letters through symlinks in `dosdevices`.
+//! Wine prefixes define drive letters through symlinks in `dosdevices`
 //! Conversion therefore uses the selected prefix's actual mappings instead of
-//! assuming that a particular drive, including `Z:`, is configured.
+//! assuming that a particular drive, including `Z:`, is configured
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use crate::error::{Error, Result};
 
-/// Converts an absolute Windows drive path through a prefix's configured drives.
+/// Converts an absolute Windows drive path through a prefix's configured drives
 ///
 /// # Errors
 ///
 /// Returns an error for invalid drive syntax, parent traversal, or a drive that
-/// is absent from the selected prefix.
+/// is absent from the selected prefix
 pub fn windows_path_to_unix(prefix: &Path, windows_path: &str) -> Result<PathBuf> {
     let bytes = windows_path.as_bytes();
     if bytes.len() < 3 || bytes[1] != b':' || !bytes[0].is_ascii_alphabetic() {
@@ -33,7 +33,7 @@ pub fn windows_path_to_unix(prefix: &Path, windows_path: &str) -> Result<PathBuf
         });
     }
 
-    // Reject parent traversal before joining user-controlled path components.
+    // Reject parent traversal before joining user-controlled path components
     let relative = windows_path[3..].replace('\\', "/");
     let relative_path = Path::new(&relative);
     if relative_path
@@ -50,19 +50,19 @@ pub fn windows_path_to_unix(prefix: &Path, windows_path: &str) -> Result<PathBuf
     Ok(mapping.join(relative_path))
 }
 
-/// Converts an existing Unix path using the longest matching configured drive.
+/// Converts an existing Unix path using the longest matching configured drive
 ///
 /// # Errors
 ///
 /// Returns an error when the path cannot be canonicalized, no configured drive
-/// contains it, or it cannot be encoded for the helper protocol.
+/// contains it, or it cannot be encoded for the helper protocol
 pub fn unix_path_to_windows(prefix: &Path, unix_path: &Path) -> Result<String> {
     let absolute = unix_path
         .canonicalize()
         .map_err(|source| Error::io(unix_path, source))?;
     let mappings = drive_mappings(prefix)?;
 
-    // A more specific mapping such as S:\steamapps is preferable to Z:\.
+    // A more specific mapping such as S:\steamapps is preferable to Z:\
     let (drive, root) = mappings
         .into_iter()
         .filter(|(_, root)| absolute.starts_with(root))
@@ -93,11 +93,11 @@ pub fn unix_path_to_windows(prefix: &Path, unix_path: &Path) -> Result<String> {
     }
 }
 
-/// Returns every usable single-letter drive mapping from `dosdevices`.
+/// Returns every usable single-letter drive mapping from `dosdevices`
 ///
 /// # Errors
 ///
-/// Returns an error when the prefix's `dosdevices` directory cannot be read.
+/// Returns an error when the prefix's `dosdevices` directory cannot be read
 pub fn drive_mappings(prefix: &Path) -> Result<Vec<(char, PathBuf)>> {
     let dosdevices = prefix.join("dosdevices");
     let entries = fs::read_dir(&dosdevices).map_err(|source| Error::io(&dosdevices, source))?;
@@ -113,7 +113,7 @@ pub fn drive_mappings(prefix: &Path) -> Result<Vec<(char, PathBuf)>> {
             continue;
         }
 
-        // Canonicalization follows relative symlinks such as c: -> ../drive_c.
+        // Canonicalization follows relative symlinks such as c: -> ../drive_c
         if let Ok(target) = entry.path().canonicalize() {
             mappings.push(((bytes[0] as char).to_ascii_lowercase(), target));
         }

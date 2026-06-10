@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-/// Structured errors provide stable kinds for CLI JSON output.
+/// Structured errors provide stable kinds for CLI JSON output
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("unable to access {path}: {source}")]
@@ -61,7 +61,7 @@ impl Error {
         }
     }
 
-    /// Stable machine-facing category used by `--json` error responses.
+    /// Stable machine-facing category used by `--json` error responses
     #[must_use]
     pub fn kind(&self) -> &'static str {
         match self {
@@ -93,7 +93,7 @@ impl Error {
         }
     }
 
-    /// Returns the target-side Windows error when one was preserved.
+    /// Returns the target-side Windows error when one was preserved
     #[must_use]
     pub const fn windows_error(&self) -> Option<u32> {
         match self {

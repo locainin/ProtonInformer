@@ -6,12 +6,12 @@ use crate::{
     TargetSelector,
 };
 
-/// Execution limits and verification requirements.
+/// Execution limits and verification requirements
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelperOptions {
-    /// Maximum operation duration.
+    /// Maximum operation duration
     pub timeout_ms: u64,
-    /// Reserved load verification switch. Load requests must keep this true.
+    /// Reserved load verification switch. Load requests must keep this true
     pub verify_module_after_load: bool,
 }
 
@@ -24,30 +24,30 @@ impl Default for HelperOptions {
     }
 }
 
-/// One helper request persisted by the Linux controller.
+/// One helper request persisted by the Linux controller
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelperRequest {
-    /// Requested operation.
+    /// Requested operation
     pub operation: HelperOperation,
-    /// Operation limits.
+    /// Operation limits
     pub options: HelperOptions,
-    /// Payload required only by `load_library`.
+    /// Payload required only by `load_library`
     pub payload: Option<HelperPayload>,
-    /// Unique correlation identifier.
+    /// Unique correlation identifier
     pub request_id: String,
-    /// Protocol schema.
+    /// Protocol schema
     pub schema_version: u32,
-    /// Target required by module queries and loading.
+    /// Target required by module queries and loading
     pub target: Option<HelperTarget>,
 }
 
 impl HelperRequest {
-    /// Validates schema and operation-specific fields before any API call.
+    /// Validates schema and operation-specific fields before any API call
     ///
     /// # Errors
     ///
     /// Returns a validation error for unsupported schemas, empty request IDs,
-    /// missing operation fields, invalid paths, hashes, names, or timeouts.
+    /// missing operation fields, invalid paths, hashes, names, or timeouts
     pub fn validate(&self) -> Result<(), ProtocolValidationError> {
         if self.schema_version != SCHEMA_VERSION {
             return Err(ProtocolValidationError::UnsupportedSchema(

@@ -1,4 +1,4 @@
-//! Minimal executable entry point for `ProtonInformer`.
+//! Minimal executable entry point for `ProtonInformer`
 
 #![forbid(unsafe_code)]
 #![deny(warnings)]

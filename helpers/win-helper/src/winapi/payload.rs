@@ -1,4 +1,4 @@
-//! Payload path validation, canonicalization, and mutation locking.
+//! Payload path validation, canonicalization, and mutation locking
 
 use std::ptr;
 
@@ -11,21 +11,21 @@ use windows_sys::Win32::Storage::FileSystem::{
 use super::common::{OwnedHandle, last_error, last_error_code, null_terminated_wide};
 use crate::error::HelperFailure;
 
-/// Read-locked payload and the normalized Windows path represented by its handle.
+/// Read-locked payload and the normalized Windows path represented by its handle
 pub struct LockedPayload {
-    /// Handle remains open to deny write and delete sharing through the load.
+    /// Handle remains open to deny write and delete sharing through the load
     _handle: OwnedHandle,
     canonical_path: String,
 }
 
 impl LockedPayload {
-    /// Returns the normalized DOS path used for validation and loading.
+    /// Returns the normalized DOS path used for validation and loading
     pub fn canonical_path(&self) -> &str {
         &self.canonical_path
     }
 }
 
-/// Opens and canonicalizes one payload while denying write and delete sharing.
+/// Opens and canonicalizes one payload while denying write and delete sharing
 pub fn lock_payload(windows_path: &str) -> Result<LockedPayload, HelperFailure> {
     if !is_absolute_windows_path(windows_path) {
         return Err(HelperFailure::InvalidWindowsPath(format!(
@@ -63,7 +63,7 @@ pub fn lock_payload(windows_path: &str) -> Result<LockedPayload, HelperFailure> 
     })
 }
 
-/// Returns the normalized DOS path represented by one open file handle.
+/// Returns the normalized DOS path represented by one open file handle
 fn final_path_name(handle: HANDLE) -> Result<String, HelperFailure> {
     let flags = FILE_NAME_NORMALIZED | VOLUME_NAME_DOS;
     // SAFETY: null output requests the required buffer length
@@ -100,7 +100,7 @@ fn final_path_name(handle: HANDLE) -> Result<String, HelperFailure> {
     Ok(strip_extended_prefix(&path))
 }
 
-/// Accepts drive-absolute and UNC paths without resolving relative input.
+/// Accepts drive-absolute and UNC paths without resolving relative input
 fn is_absolute_windows_path(path: &str) -> bool {
     let bytes = path.as_bytes();
     let drive_absolute = bytes.len() >= 3
@@ -114,7 +114,7 @@ fn is_absolute_windows_path(path: &str) -> bool {
     (drive_absolute || unc) && !path.contains('\0')
 }
 
-/// Removes the Win32 extended-length prefix for stable module comparison.
+/// Removes the Win32 extended-length prefix for stable module comparison
 fn strip_extended_prefix(path: &str) -> String {
     path.strip_prefix(r"\\?\UNC\").map_or_else(
         || path.strip_prefix(r"\\?\").unwrap_or(path).to_owned(),

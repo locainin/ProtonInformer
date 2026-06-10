@@ -1,4 +1,4 @@
-//! Public binary inspection behavior.
+//! Public binary inspection behavior
 
 use std::fs::{self, File};
 use std::path::PathBuf;

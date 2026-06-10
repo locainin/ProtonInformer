@@ -1,4 +1,4 @@
-//! Live `/proc` inspection checks.
+//! Live `/proc` inspection checks
 
 use proton_informer::process::{self, EnvironmentStatus, TargetKind};
 

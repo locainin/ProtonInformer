@@ -1,4 +1,4 @@
-//! Runtime selection and no-shell helper command construction.
+//! Runtime selection and no-shell helper command construction
 
 use std::collections::BTreeMap;
 use std::env;
@@ -12,12 +12,12 @@ use crate::wine;
 
 use super::model::{HelperInvocation, HelperRuntime};
 
-/// Builds a non-mutating helper diagnostic invocation.
+/// Builds a non-mutating helper diagnostic invocation
 ///
 /// # Errors
 ///
 /// Returns an error when the architecture has no helper, helper discovery
-/// fails, or the target runtime identity is incomplete.
+/// fails, or the target runtime identity is incomplete
 pub fn diagnostic_invocation(
     target: &ProcessInfo,
     architecture: Architecture,
@@ -29,7 +29,7 @@ pub fn diagnostic_invocation(
     diagnostic_invocation_with_helper(target, &helper_path, flag)
 }
 
-/// Builds a diagnostic invocation for one already verified helper path.
+/// Builds a diagnostic invocation for one already verified helper path
 pub(super) fn diagnostic_invocation_with_helper(
     target: &ProcessInfo,
     helper_path: &Path,
@@ -54,12 +54,12 @@ pub(super) fn diagnostic_invocation_with_helper(
     invocation(runtime, &helper_windows_path, vec![flag.into()])
 }
 
-/// Selects the exact compatibility runtime represented by process evidence.
+/// Selects the exact compatibility runtime represented by process evidence
 ///
 /// # Errors
 ///
 /// Returns an error when Proton identity is incomplete, the prefix is unknown,
-/// the Proton launcher is missing, or no plain Wine command is available.
+/// the Proton launcher is missing, or no plain Wine command is available
 pub fn select_runtime(target: &ProcessInfo) -> Result<HelperRuntime> {
     let proton_identity_present = target.compatdata_dir.is_some()
         || target.proton_dist.is_some()
@@ -124,7 +124,7 @@ pub fn select_runtime(target: &ProcessInfo) -> Result<HelperRuntime> {
     })
 }
 
-/// Creates command fields without shell concatenation.
+/// Creates command fields without shell concatenation
 pub(super) fn invocation(
     runtime: HelperRuntime,
     helper_windows_path: &str,
@@ -171,7 +171,7 @@ pub(super) fn invocation(
     })
 }
 
-/// Returns the minimum host environment required to launch Wine or Proton.
+/// Returns the minimum host environment required to launch Wine or Proton
 fn base_environment() -> Result<BTreeMap<String, String>> {
     let mut environment = BTreeMap::new();
     let home = env::var_os("HOME").ok_or_else(|| Error::InvalidInput("HOME is not set".into()))?;
@@ -189,14 +189,14 @@ fn base_environment() -> Result<BTreeMap<String, String>> {
     Ok(environment)
 }
 
-/// Converts one path into a command-safe UTF-8 value.
+/// Converts one path into a command-safe UTF-8 value
 fn path_text(path: &Path) -> Result<String> {
     path.to_str()
         .map(str::to_owned)
         .ok_or_else(|| Error::InvalidInput(format!("path is not valid UTF-8: {}", path.display())))
 }
 
-/// Returns whether the current helper implementation supports an architecture.
+/// Returns whether the current helper implementation supports an architecture
 #[must_use]
 pub const fn helper_architecture_supported(architecture: Architecture) -> bool {
     matches!(architecture, Architecture::X86 | Architecture::X86_64)

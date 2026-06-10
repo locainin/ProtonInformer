@@ -1,4 +1,4 @@
-//! Bounded helper process execution checks.
+//! Bounded helper process execution checks
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -8,7 +8,7 @@ use proton_informer::helper_executor::{execute, execute_in_directory};
 use proton_informer::helper_runtime::{HelperInvocation, HelperRuntime};
 use tempfile::tempdir;
 
-/// Builds a typed invocation for one ordinary test command.
+/// Builds a typed invocation for one ordinary test command
 fn invocation(program: PathBuf, arguments: Vec<String>) -> HelperInvocation {
     HelperInvocation {
         arguments,

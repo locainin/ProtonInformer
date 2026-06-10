@@ -1,8 +1,8 @@
-//! Steam library, game, and Proton prefix discovery.
+//! Steam library, game, and Proton prefix discovery
 //!
 //! Discovery returns warnings alongside successful games. Broken manifests and
 //! unreadable libraries must remain visible to users instead of disappearing
-//! from the result set.
+//! from the result set
 
 use std::collections::BTreeSet;
 use std::env;
@@ -37,7 +37,7 @@ pub struct SteamDiscoveryReport {
     pub warnings: Vec<DiscoveryWarning>,
 }
 
-/// Discovers every readable app manifest and retains all parse failures.
+/// Discovers every readable app manifest and retains all parse failures
 #[must_use]
 pub fn discover_games() -> SteamDiscoveryReport {
     let mut games = Vec::new();
@@ -56,7 +56,7 @@ pub fn discover_games() -> SteamDiscoveryReport {
             }
         };
 
-        // App manifests are the source of truth for names and install folders.
+        // App manifests are the source of truth for names and install folders
         for manifest in entries.flatten().map(|entry| entry.path()).filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
@@ -82,7 +82,7 @@ pub fn discover_games() -> SteamDiscoveryReport {
     SteamDiscoveryReport { games, warnings }
 }
 
-/// Returns candidate Steam libraries from native, Flatpak, XDG, and exported roots.
+/// Returns candidate Steam libraries from native, Flatpak, XDG, and exported roots
 #[must_use]
 pub fn discover_libraries() -> Vec<PathBuf> {
     let mut libraries = BTreeSet::new();
@@ -107,7 +107,7 @@ pub fn discover_libraries() -> Vec<PathBuf> {
     libraries.into_iter().collect()
 }
 
-/// Finds one game while preserving warnings for caller diagnostics.
+/// Finds one game while preserving warnings for caller diagnostics
 #[must_use]
 pub fn find_game(app_id: u32) -> (Option<SteamGame>, Vec<DiscoveryWarning>) {
     let report = discover_games();
@@ -118,7 +118,7 @@ pub fn find_game(app_id: u32) -> (Option<SteamGame>, Vec<DiscoveryWarning>) {
 fn steam_roots() -> Vec<PathBuf> {
     let mut roots = BTreeSet::new();
 
-    // Steam exports this root to compatibility-tool processes.
+    // Steam exports this root to compatibility-tool processes
     if let Some(root) = env::var_os("STEAM_COMPAT_CLIENT_INSTALL_PATH") {
         roots.insert(PathBuf::from(root));
     }
@@ -180,7 +180,7 @@ fn required_value(contents: &str, path: &Path, key: &str) -> Result<String> {
 
 fn quoted_value(line: &str, key: &str) -> Option<String> {
     // Valve's text format permits nested blocks, but these fields are complete
-    // quoted key/value pairs and do not require a lossy whole-file parser.
+    // quoted key/value pairs and do not require a lossy whole-file parser
     let mut quoted = line.split('"').skip(1).step_by(2);
     let found_key = quoted.next()?.trim();
     let value = quoted.next()?;

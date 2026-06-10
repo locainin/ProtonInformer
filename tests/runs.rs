@@ -1,4 +1,4 @@
-//! Managed run-state listing, validation, and cleanup checks.
+//! Managed run-state listing, validation, and cleanup checks
 
 use std::fs;
 use std::os::unix::fs::{PermissionsExt, symlink};

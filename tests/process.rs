@@ -1,4 +1,4 @@
-//! Process module integration suite.
+//! Process module integration suite
 
 #[path = "process/inspection.rs"]
 mod inspection;

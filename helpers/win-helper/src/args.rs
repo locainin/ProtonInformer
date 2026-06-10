@@ -1,28 +1,28 @@
-//! Command parser for the helper's narrow interface.
+//! Command parser for the helper's narrow interface
 
 use std::path::PathBuf;
 
 use crate::error::HelperFailure;
 
-/// Supported helper command.
+/// Supported helper command
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
-    /// Print the supported command syntax.
+    /// Print the supported command syntax
     Help,
-    /// Read one request from a JSON file.
+    /// Read one request from a JSON file
     Request(PathBuf),
-    /// Run non-mutating environment checks.
+    /// Run non-mutating environment checks
     SelfTest,
-    /// Print helper identity and capabilities.
+    /// Print helper identity and capabilities
     Version,
 }
 
-/// Parses process arguments without accepting free-form operation fields.
+/// Parses process arguments without accepting free-form operation fields
 pub fn parse() -> Result<Command, HelperFailure> {
     parse_from(std::env::args_os().skip(1))
 }
 
-/// Parses an explicit argument iterator.
+/// Parses an explicit argument iterator
 fn parse_from<I>(arguments: I) -> Result<Command, HelperFailure>
 where
     I: IntoIterator<Item = std::ffi::OsString>,
@@ -54,7 +54,7 @@ where
     Ok(command)
 }
 
-/// Returns the helper's command syntax.
+/// Returns the helper's command syntax
 pub const fn usage() -> &'static str {
     concat!(
         "Usage: proton-informer-win-helper <COMMAND>\n\n",

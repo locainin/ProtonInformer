@@ -1,4 +1,4 @@
-//! Versioned JSON contract shared by the Linux controller and Windows helper.
+//! Versioned JSON contract shared by the Linux controller and Windows helper
 
 #![forbid(unsafe_code)]
 #![deny(warnings)]

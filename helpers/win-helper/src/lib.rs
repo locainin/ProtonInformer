@@ -1,4 +1,4 @@
-//! Windows-side helper command and protocol implementation.
+//! Windows-side helper command and protocol implementation
 
 #![deny(warnings)]
 #![deny(unsafe_op_in_unsafe_fn)]
@@ -20,7 +20,7 @@ use std::process::ExitCode;
 
 use error::HelperFailure;
 
-/// Parses process arguments and returns one helper exit status.
+/// Parses process arguments and returns one helper exit status
 #[must_use]
 pub fn launch() -> ExitCode {
     match args::parse().and_then(run) {
@@ -32,7 +32,7 @@ pub fn launch() -> ExitCode {
     }
 }
 
-/// Executes one validated helper command.
+/// Executes one validated helper command
 fn run(command: args::Command) -> Result<(), HelperFailure> {
     match command {
         args::Command::Help => {

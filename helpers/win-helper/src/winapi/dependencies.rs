@@ -1,4 +1,4 @@
-//! Windows dependency search-path checks.
+//! Windows dependency search-path checks
 
 use std::ptr;
 
@@ -9,7 +9,7 @@ use crate::error::HelperFailure;
 
 const MAX_WINDOWS_PATH: usize = 32_768;
 
-/// Returns whether the current Wine prefix search path resolves one DLL name.
+/// Returns whether the current Wine prefix search path resolves one DLL name
 pub fn dependency_visible(name: &str) -> Result<bool, HelperFailure> {
     let name = null_terminated_wide(name)?;
     let mut buffer = vec![0_u16; MAX_WINDOWS_PATH];

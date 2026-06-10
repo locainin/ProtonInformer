@@ -1,4 +1,4 @@
-//! Bounded PE import-table parsing for dependency preflight.
+//! Bounded PE import-table parsing for dependency preflight
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -12,25 +12,25 @@ const MAX_IMPORTS: usize = 4_096;
 const MAX_IMPORT_NAME_BYTES: usize = 260;
 const SECTION_HEADER_BYTES: usize = 40;
 
-/// One PE section mapping from virtual address to file offset.
+/// One PE section mapping from virtual address to file offset
 struct Section {
     raw_offset: u32,
     raw_size: u32,
     virtual_address: u32,
 }
 
-/// File-backed bytes available from one mapped RVA.
+/// File-backed bytes available from one mapped RVA
 struct FileRegion {
     available: u32,
     offset: u32,
 }
 
-/// Returns imported DLL basenames without loading the whole payload into RAM.
+/// Returns imported DLL basenames without loading the whole payload into RAM
 ///
 /// # Errors
 ///
 /// Returns an error when the PE headers, section mappings, descriptors, or
-/// imported names are malformed or unreadable.
+/// imported names are malformed or unreadable
 pub fn dll_names(path: &Path) -> Result<Vec<String>, HelperFailure> {
     let mut file = File::open(path)
         .map_err(|source| HelperFailure::io("unable to open PE imports", source))?;
@@ -116,7 +116,7 @@ pub fn dll_names(path: &Path) -> Result<Vec<String>, HelperFailure> {
     Ok(imports)
 }
 
-/// Reads bounded import descriptors and requires their null terminator.
+/// Reads bounded import descriptors and requires their null terminator
 fn read_import_descriptors(
     file: &mut File,
     import_offset: u32,
@@ -152,7 +152,7 @@ fn read_import_descriptors(
     ))
 }
 
-/// Reads section mappings with a strict count from the validated COFF header.
+/// Reads section mappings with a strict count from the validated COFF header
 fn read_sections(file: &mut File, count: usize) -> Result<Vec<Section>, HelperFailure> {
     let mut sections = Vec::with_capacity(count);
     for _ in 0..count {
@@ -180,7 +180,7 @@ fn read_sections(file: &mut File, count: usize) -> Result<Vec<Section>, HelperFa
     Ok(sections)
 }
 
-/// Converts one image-relative address into checked file-backed section bytes.
+/// Converts one image-relative address into checked file-backed section bytes
 fn rva_to_file_region(rva: u32, sections: &[Section]) -> Result<FileRegion, HelperFailure> {
     sections
         .iter()
@@ -202,7 +202,7 @@ fn rva_to_file_region(rva: u32, sections: &[Section]) -> Result<FileRegion, Help
         })
 }
 
-/// Reads one bounded ASCII import name.
+/// Reads one bounded ASCII import name
 fn read_c_string(file: &mut File, available: u32) -> Result<String, HelperFailure> {
     let mut bytes = Vec::with_capacity(32);
     let limit = usize::try_from(available)
@@ -243,7 +243,7 @@ fn read_c_string(file: &mut File, available: u32) -> Result<String, HelperFailur
     ))
 }
 
-/// Reads one little-endian word from a bounded optional header.
+/// Reads one little-endian word from a bounded optional header
 fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, HelperFailure> {
     let end = offset
         .checked_add(2)
@@ -257,7 +257,7 @@ fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, HelperFailure> {
     ))
 }
 
-/// Reads one little-endian double word from a bounded optional header.
+/// Reads one little-endian double word from a bounded optional header
 fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, HelperFailure> {
     let end = offset
         .checked_add(4)

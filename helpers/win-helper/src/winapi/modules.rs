@@ -1,4 +1,4 @@
-//! Windows module snapshots and validated address-range discovery.
+//! Windows module snapshots and validated address-range discovery
 
 use std::mem::{size_of, zeroed};
 
@@ -13,14 +13,14 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
 use super::common::{OwnedHandle, last_error, wide_string};
 use crate::error::HelperFailure;
 
-/// Module address range in one process.
+/// Module address range in one process
 pub(super) struct ModuleAddress {
     pub(super) base: usize,
     pub(super) name: String,
     pub(super) size: usize,
 }
 
-/// Enumerates modules for one Windows process.
+/// Enumerates modules for one Windows process
 pub fn modules(windows_pid: u32) -> Result<Vec<WindowsModuleInfo>, HelperFailure> {
     let snapshot = create_module_snapshot(windows_pid)?;
     // SAFETY: zeroed is the documented initialization for MODULEENTRY32W
@@ -68,11 +68,11 @@ pub fn modules(windows_pid: u32) -> Result<Vec<WindowsModuleInfo>, HelperFailure
     Ok(modules)
 }
 
-/// Creates a module snapshot and retries transient `ERROR_BAD_LENGTH` failures.
+/// Creates a module snapshot and retries transient `ERROR_BAD_LENGTH` failures
 ///
 /// Each helper is built for the same architecture as its target, so
 /// `TH32CS_SNAPMODULE` selects the correct module view without asking Wine for
-/// the opposite-bitness list through `TH32CS_SNAPMODULE32`.
+/// the opposite-bitness list through `TH32CS_SNAPMODULE32`
 pub(super) fn create_module_snapshot(windows_pid: u32) -> Result<OwnedHandle, HelperFailure> {
     let mut last_code = ERROR_BAD_LENGTH;
     for _ in 0..8 {
@@ -94,7 +94,7 @@ pub(super) fn create_module_snapshot(windows_pid: u32) -> Result<OwnedHandle, He
     })
 }
 
-/// Creates one non-module snapshot.
+/// Creates one non-module snapshot
 pub(super) fn create_snapshot(
     flags: u32,
     windows_pid: u32,
@@ -105,7 +105,7 @@ pub(super) fn create_snapshot(
     OwnedHandle::new(handle, operation)
 }
 
-/// Enumerates module names and address ranges for address validation.
+/// Enumerates module names and address ranges for address validation
 pub(super) fn module_addresses(windows_pid: u32) -> Result<Vec<ModuleAddress>, HelperFailure> {
     let snapshot = create_module_snapshot(windows_pid)?;
     // SAFETY: zeroed is the documented initialization for MODULEENTRY32W

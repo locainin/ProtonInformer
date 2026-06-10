@@ -1,7 +1,3 @@
-//! Typed backend selection and non-executing requirement checks.
-//!
-//! Planning remains separate from helper execution so policy checks can be
-//! inspected without changing a target process.
 
 use std::path::{Path, PathBuf};
 
@@ -55,20 +51,20 @@ pub struct OverridePlan {
     pub placement_note: String,
 }
 
-/// File-placement state required before a Wine DLL override can work.
+/// File-placement state required before a Wine DLL override can work
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "mode")]
 pub enum OverridePlacement {
-    /// The planner does not know the target application's DLL search path.
+    /// The planner does not know the target application's DLL search path
     InstructionsOnly,
 }
 
-/// Plans a helper-backed load for an already running process.
+/// Plans a helper-backed load for an already running process
 ///
 /// # Errors
 ///
 /// Returns an error when format, architecture, or target compatibility checks
-/// reject the requested plan.
+/// reject the requested plan
 pub fn plan_running(
     payload: BinaryInspection,
     target: ProcessInfo,
@@ -82,7 +78,7 @@ pub fn plan_running(
         ));
     }
 
-    // Wine guest architecture must never inherit the Linux host loader's value.
+    // Wine guest architecture must never inherit the Linux host loader's value
     let target_architecture =
         resolve_target_architecture(&payload, &target, architecture_override)?;
     if payload.architecture == Architecture::Unknown {
@@ -157,7 +153,7 @@ pub fn plan_running(
     })
 }
 
-/// Reconciles explicit architecture input with discovered target evidence.
+/// Reconciles explicit architecture input with discovered target evidence
 fn resolve_target_architecture(
     payload: &BinaryInspection,
     target: &ProcessInfo,
@@ -194,12 +190,12 @@ fn resolve_target_architecture(
     Ok(architecture)
 }
 
-/// Plans Wine startup DLL override behavior without requiring a running PID.
+/// Plans Wine startup DLL override behavior without requiring a running PID
 ///
 /// # Errors
 ///
 /// Returns an error when the payload is not a PE DLL, the prefix is missing,
-/// the override name is invalid, or the payload has no configured drive path.
+/// the override name is invalid, or the payload has no configured drive path
 pub fn plan_override(
     payload: BinaryInspection,
     prefix: &Path,

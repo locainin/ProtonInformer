@@ -1,4 +1,4 @@
-//! Windows process enumeration, path lookup, and architecture detection.
+//! Windows process enumeration, path lookup, and architecture detection
 
 use std::mem::{size_of, zeroed};
 
@@ -19,13 +19,13 @@ use super::common::{OwnedHandle, wide_string};
 use super::modules::create_snapshot;
 use crate::error::HelperFailure;
 
-/// Returns the current Windows process identifier.
+/// Returns the current Windows process identifier
 pub fn current_process_id() -> u32 {
     // SAFETY: GetCurrentProcessId has no arguments or preconditions
     unsafe { GetCurrentProcessId() }
 }
 
-/// Enumerates visible Windows processes with best-effort path and architecture.
+/// Enumerates visible Windows processes with best-effort path and architecture
 pub fn processes() -> Result<Vec<WindowsProcessInfo>, HelperFailure> {
     let snapshot = create_snapshot(TH32CS_SNAPPROCESS, 0, "process snapshot")?;
     // SAFETY: zeroed is the documented initialization for PROCESSENTRY32W
@@ -80,14 +80,14 @@ pub fn processes() -> Result<Vec<WindowsProcessInfo>, HelperFailure> {
     Ok(processes)
 }
 
-/// Best-effort identity fields collected through one process handle.
+/// Best-effort identity fields collected through one process handle
 struct ProcessDetails {
     architecture: ProtocolArchitecture,
     creation_time_100ns: Option<u64>,
     path: Option<String>,
 }
 
-/// Opens one process once and collects all available identity evidence.
+/// Opens one process once and collects all available identity evidence
 fn process_details(windows_pid: u32) -> Option<ProcessDetails> {
     let process = open_query_process(windows_pid).ok()?;
     Some(ProcessDetails {
@@ -97,7 +97,7 @@ fn process_details(windows_pid: u32) -> Option<ProcessDetails> {
     })
 }
 
-/// Returns a process executable path when query access is available.
+/// Returns a process executable path when query access is available
 fn process_path(process: &OwnedHandle) -> Option<String> {
     let mut buffer = vec![0_u16; 32_768];
     let mut length = u32::try_from(buffer.len()).ok()?;
@@ -111,7 +111,7 @@ fn process_path(process: &OwnedHandle) -> Option<String> {
     Some(String::from_utf16_lossy(buffer.get(..length)?))
 }
 
-/// Returns a process architecture when query access is available.
+/// Returns a process architecture when query access is available
 fn process_architecture(process: &OwnedHandle) -> ProtocolArchitecture {
     let mut process_machine = IMAGE_FILE_MACHINE_UNKNOWN;
     let mut native_machine = IMAGE_FILE_MACHINE_UNKNOWN;
@@ -133,7 +133,7 @@ fn process_architecture(process: &OwnedHandle) -> ProtocolArchitecture {
     })
 }
 
-/// Returns the immutable process creation timestamp used to reject PID reuse.
+/// Returns the immutable process creation timestamp used to reject PID reuse
 pub(super) fn process_creation_time(process: &OwnedHandle) -> Option<u64> {
     let mut creation = FILETIME {
         dwLowDateTime: 0,
@@ -158,14 +158,14 @@ pub(super) fn process_creation_time(process: &OwnedHandle) -> Option<u64> {
     Some((u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime))
 }
 
-/// Opens one process for non-mutating identity queries.
+/// Opens one process for non-mutating identity queries
 fn open_query_process(windows_pid: u32) -> Result<OwnedHandle, HelperFailure> {
     // SAFETY: PID and access flags are plain values with no pointer preconditions
     let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, windows_pid) };
     OwnedHandle::new(handle, "OpenProcess query")
 }
 
-/// Maps a Windows machine type into the shared architecture enum.
+/// Maps a Windows machine type into the shared architecture enum
 const fn machine_architecture(machine: u16) -> ProtocolArchitecture {
     match machine {
         IMAGE_FILE_MACHINE_AMD64 => ProtocolArchitecture::X86_64,

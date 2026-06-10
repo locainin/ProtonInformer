@@ -1,4 +1,4 @@
-//! Helper release-manifest verification checks.
+//! Helper release-manifest verification checks
 
 use std::fs;
 use std::os::unix::ffi::OsStringExt;

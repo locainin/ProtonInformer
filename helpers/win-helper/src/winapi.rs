@@ -1,7 +1,7 @@
-//! Unsafe Windows API boundary.
+//! Unsafe Windows API boundary
 //!
 //! Raw handles and pointers are confined to this module tree. Public functions
-//! return owned Rust values and convert Windows failures immediately.
+//! return owned Rust values and convert Windows failures immediately
 
 mod common;
 mod dependencies;

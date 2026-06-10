@@ -1,4 +1,4 @@
-//! Bounded execution of typed helper invocations.
+//! Bounded execution of typed helper invocations
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
@@ -16,23 +16,23 @@ use crate::helper_runtime::HelperInvocation;
 const MAX_HELPER_OUTPUT_BYTES: u64 = 1024 * 1024;
 const MAX_HELPER_PROCESS_TIME_MS: u64 = 310_000;
 
-/// Captured helper process result.
+/// Captured helper process result
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelperExecutionOutput {
-    /// Process exit code when the platform reported one.
+    /// Process exit code when the platform reported one
     pub exit_code: Option<i32>,
-    /// Bounded standard error text.
+    /// Bounded standard error text
     pub stderr: String,
-    /// Bounded standard output text.
+    /// Bounded standard output text
     pub stdout: String,
 }
 
-/// Executes one invocation without a shell and with a hard timeout.
+/// Executes one invocation without a shell and with a hard timeout
 ///
 /// # Errors
 ///
 /// Returns an error for state-file failures, process launch failures, timeout,
-/// output larger than one MiB, or invalid UTF-8 output.
+/// output larger than one MiB, or invalid UTF-8 output
 pub fn execute(invocation: &HelperInvocation, timeout_ms: u64) -> Result<HelperExecutionOutput> {
     if !(1..=MAX_HELPER_PROCESS_TIME_MS).contains(&timeout_ms) {
         return Err(Error::InvalidInput(
@@ -62,11 +62,11 @@ pub fn execute(invocation: &HelperInvocation, timeout_ms: u64) -> Result<HelperE
     result
 }
 
-/// Executes one invocation using an existing owner-only run directory.
+/// Executes one invocation using an existing owner-only run directory
 ///
 /// # Errors
 ///
-/// Returns the same bounded process and output failures as [`execute`].
+/// Returns the same bounded process and output failures as [`execute`]
 pub fn execute_in_directory(
     invocation: &HelperInvocation,
     timeout_ms: u64,
@@ -107,7 +107,7 @@ pub fn execute_in_directory(
     result
 }
 
-/// Runs one child after all output destinations are ready.
+/// Runs one child after all output destinations are ready
 fn run_process(
     invocation: &HelperInvocation,
     timeout_ms: u64,
@@ -145,7 +145,7 @@ fn run_process(
     })
 }
 
-/// Creates one owner-only output file without replacing existing data.
+/// Creates one owner-only output file without replacing existing data
 fn private_output_file(path: &std::path::Path) -> Result<File> {
     OpenOptions::new()
         .write(true)
@@ -155,7 +155,7 @@ fn private_output_file(path: &std::path::Path) -> Result<File> {
         .map_err(|source| Error::io(path, source))
 }
 
-/// Reads helper output only after enforcing a strict size limit.
+/// Reads helper output only after enforcing a strict size limit
 fn read_bounded_text(path: &std::path::Path) -> Result<String> {
     let mut bytes = Vec::new();
     File::open(path)

@@ -1,4 +1,4 @@
-//! Wine runtime evidence and guest executable resolution.
+//! Wine runtime evidence and guest executable resolution
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ use super::model::{
 use crate::binary::{self, BinaryFormat};
 use crate::wine;
 
-/// One independent indicator used during process classification.
+/// One independent indicator used during process classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum EvidenceKind {
     CompatdataPath,
@@ -20,20 +20,20 @@ enum EvidenceKind {
     WineEnvironment,
 }
 
-/// Internal evidence set used to avoid classifying from `.exe` text alone.
+/// Internal evidence set used to avoid classifying from `.exe` text alone
 #[derive(Debug, Default)]
 pub(super) struct ProcessEvidence {
     kinds: BTreeSet<EvidenceKind>,
 }
 
 impl ProcessEvidence {
-    /// Reports whether one indicator was observed.
+    /// Reports whether one indicator was observed
     fn contains(&self, kind: EvidenceKind) -> bool {
         self.kinds.contains(&kind)
     }
 }
 
-/// Classifies a process and reports how strongly the available facts agree.
+/// Classifies a process and reports how strongly the available facts agree
 pub(super) fn classify(evidence: &ProcessEvidence) -> (TargetKind, ClassificationConfidence) {
     let runtime_evidence = evidence.contains(EvidenceKind::RuntimeIdentity)
         || evidence.contains(EvidenceKind::WineEnvironment)
@@ -66,7 +66,7 @@ pub(super) fn classify(evidence: &ProcessEvidence) -> (TargetKind, Classificatio
     (TargetKind::WineProtonWindows, confidence)
 }
 
-/// Collects runtime evidence without treating a guest filename as proof alone.
+/// Collects runtime evidence without treating a guest filename as proof alone
 pub(super) fn collect(
     name: &str,
     executable: Option<&Path>,
@@ -112,7 +112,7 @@ pub(super) fn collect(
     ProcessEvidence { kinds }
 }
 
-/// Finds an existing guest PE candidate and records how it was resolved.
+/// Finds an existing guest PE candidate and records how it was resolved
 pub(super) fn find_guest_executable(
     command: &[String],
     prefix: Option<&Path>,
@@ -152,15 +152,15 @@ pub(super) fn find_guest_executable(
     })
 }
 
-/// Confirms one candidate is an actual PE executable rather than an `.exe` name.
+/// Confirms one candidate is an actual PE executable rather than an `.exe` name
 fn is_pe_executable(path: &Path) -> bool {
     binary::inspect(path).is_ok_and(|inspection| inspection.format == BinaryFormat::PeExecutable)
 }
 
-/// Extracts an absolute host compatdata directory from one command argument.
+/// Extracts an absolute host compatdata directory from one command argument
 pub(super) fn host_compatdata_path(value: &str) -> Option<PathBuf> {
-    // Windows drive paths must first be resolved through a known prefix.
-    // Treating Z:/ as a Unix root would invent a host path.
+    // Windows drive paths must first be resolved through a known prefix
+    // Treating Z:/ as a Unix root would invent a host path
     if !value.starts_with('/') {
         return None;
     }
@@ -174,7 +174,7 @@ pub(super) fn host_compatdata_path(value: &str) -> Option<PathBuf> {
     )))
 }
 
-/// Extracts a Steam application identifier from an absolute host path.
+/// Extracts a Steam application identifier from an absolute host path
 pub(super) fn steam_app_id_from_path(value: &str) -> Option<u32> {
     host_compatdata_path(value)?
         .file_name()?
@@ -183,7 +183,7 @@ pub(super) fn steam_app_id_from_path(value: &str) -> Option<u32> {
         .ok()
 }
 
-/// Matches exact Wine runtime process names only.
+/// Matches exact Wine runtime process names only
 fn is_wine_runtime_name(name: &str) -> bool {
     matches!(
         name.to_ascii_lowercase().as_str(),

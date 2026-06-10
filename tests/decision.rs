@@ -1,4 +1,4 @@
-//! Public planning decision matrix.
+//! Public planning decision matrix
 
 use std::fs;
 use std::os::unix::fs::symlink;

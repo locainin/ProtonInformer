@@ -1,4 +1,4 @@
-//! Dependency preflight for one validated PE payload.
+//! Dependency preflight for one validated PE payload
 
 use std::path::Path;
 
@@ -6,7 +6,7 @@ use proton_informer_helper_protocol::{WindowsModuleInfo, WindowsProcessInfo};
 
 use crate::error::HelperFailure;
 
-/// Reports imported DLLs that are not visible through common loader paths.
+/// Reports imported DLLs that are not visible through common loader paths
 pub(super) fn dependency_warnings(
     payload_path: &str,
     process: &WindowsProcessInfo,
@@ -41,13 +41,13 @@ pub(super) fn dependency_warnings(
     Ok(warnings)
 }
 
-/// Checks Wine's Windows dependency search path.
+/// Checks Wine's Windows dependency search path
 #[cfg(windows)]
 fn platform_dependency_visible(name: &str) -> Result<bool, HelperFailure> {
     crate::winapi::dependency_visible(name)
 }
 
-/// Refuses dependency search emulation from a host-native helper build.
+/// Refuses dependency search emulation from a host-native helper build
 #[cfg(not(windows))]
 fn platform_dependency_visible(_name: &str) -> Result<bool, HelperFailure> {
     Err(HelperFailure::UnsupportedOperation(

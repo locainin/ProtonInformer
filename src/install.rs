@@ -1,4 +1,4 @@
-//! Installed helper integrity and runtime compatibility verification.
+//! Installed helper integrity and runtime compatibility verification
 
 use std::fmt;
 use std::fs::File;
@@ -16,34 +16,34 @@ use crate::types::Architecture;
 const HASH_BUFFER_BYTES: usize = 16 * 1024;
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
-/// Successful helper installation verification.
+/// Successful helper installation verification
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstallVerification {
-    /// Architecture verified on disk.
+    /// Architecture verified on disk
     pub architecture: Architecture,
-    /// SHA-256 recorded in the adjacent release manifest.
+    /// SHA-256 recorded in the adjacent release manifest
     pub helper_sha256: String,
-    /// Helper executable that passed local file checks.
+    /// Helper executable that passed local file checks
     pub helper_path: PathBuf,
-    /// Lookup source that selected the helper.
+    /// Lookup source that selected the helper
     pub helper_source: HelperLookupSource,
-    /// Whether the helper was also executed inside Wine or Proton.
+    /// Whether the helper was also executed inside Wine or Proton
     pub runtime_verified: bool,
-    /// Protocol schema reported by a live helper probe.
+    /// Protocol schema reported by a live helper probe
     pub schema_version: Option<u32>,
-    /// Helper semantic version reported by a live helper probe.
+    /// Helper semantic version reported by a live helper probe
     pub version: Option<String>,
-    /// Non-fatal verification warnings.
+    /// Non-fatal verification warnings
     pub warnings: Vec<String>,
 }
 
-/// Source used to select one helper executable.
+/// Source used to select one helper executable
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HelperLookupSource {
-    /// Selected from `PROTON_INFORMER_HELPER_DIR`.
+    /// Selected from `PROTON_INFORMER_HELPER_DIR`
     EnvironmentOverride,
-    /// Selected from packaged or build output directories.
+    /// Selected from packaged or build output directories
     PackagedSearchPath,
 }
 
@@ -56,12 +56,12 @@ impl fmt::Display for HelperLookupSource {
     }
 }
 
-/// Verifies one helper file without requiring a running game.
+/// Verifies one helper file without requiring a running game
 ///
 /// # Errors
 ///
 /// Returns an error for unsupported architectures, unsafe permissions, or
-/// missing and mismatched release manifests.
+/// missing and mismatched release manifests
 pub fn verify_static(architecture: Architecture) -> Result<InstallVerification> {
     if !matches!(architecture, Architecture::X86 | Architecture::X86_64) {
         return Err(Error::InvalidInput(format!(
@@ -94,11 +94,11 @@ pub fn verify_static(architecture: Architecture) -> Result<InstallVerification> 
     })
 }
 
-/// Verifies every packaged helper without requiring a running game.
+/// Verifies every packaged helper without requiring a running game
 ///
 /// # Errors
 ///
-/// Returns the first static verification failure.
+/// Returns the first static verification failure
 pub fn verify_all_static() -> Result<Vec<InstallVerification>> {
     [Architecture::X86, Architecture::X86_64]
         .into_iter()
@@ -106,7 +106,7 @@ pub fn verify_all_static() -> Result<Vec<InstallVerification>> {
         .collect()
 }
 
-/// Classifies the selected helper path for audit output.
+/// Classifies the selected helper path for audit output
 fn helper_lookup_source(helper_path: &Path) -> HelperLookupSource {
     if crate::helper::helper_uses_env_override(helper_path) {
         HelperLookupSource::EnvironmentOverride
@@ -115,7 +115,7 @@ fn helper_lookup_source(helper_path: &Path) -> HelperLookupSource {
     }
 }
 
-/// Builds loud but non-fatal warnings for powerful helper lookup sources.
+/// Builds loud but non-fatal warnings for powerful helper lookup sources
 fn helper_source_warnings(source: HelperLookupSource) -> Vec<String> {
     match source {
         HelperLookupSource::EnvironmentOverride => vec![format!(
@@ -126,12 +126,12 @@ fn helper_source_warnings(source: HelperLookupSource) -> Vec<String> {
     }
 }
 
-/// Verifies one helper file and executes its version probe in the target runtime.
+/// Verifies one helper file and executes its version probe in the target runtime
 ///
 /// # Errors
 ///
 /// Returns an error for unsafe permissions, missing or mismatched manifests,
-/// incompatible helper identity, or runtime execution failure.
+/// incompatible helper identity, or runtime execution failure
 pub fn verify_for_target(target: &ProcessInfo) -> Result<InstallVerification> {
     let architecture = target
         .guest_architecture
@@ -158,11 +158,11 @@ pub fn verify_for_target(target: &ProcessInfo) -> Result<InstallVerification> {
     Ok(verification)
 }
 
-/// Verifies an adjacent `<helper>.sha256` release manifest.
+/// Verifies an adjacent `<helper>.sha256` release manifest
 ///
 /// # Errors
 ///
-/// Returns an error when the manifest is absent, malformed, or does not match.
+/// Returns an error when the manifest is absent, malformed, or does not match
 pub fn verify_sha256_manifest(helper_path: &Path) -> Result<String> {
     let mut manifest_name = helper_path.as_os_str().to_os_string();
     manifest_name.push(".sha256");
@@ -189,7 +189,7 @@ pub fn verify_sha256_manifest(helper_path: &Path) -> Result<String> {
     Ok(actual)
 }
 
-/// Rejects helpers built for another controller or protocol.
+/// Rejects helpers built for another controller or protocol
 fn validate_version(version: &HelperVersion, architecture: Architecture) -> Result<()> {
     if version.helper_name != "proton-informer-win-helper" {
         return Err(Error::Rejected(format!(
@@ -220,7 +220,7 @@ fn validate_version(version: &HelperVersion, architecture: Architecture) -> Resu
     Ok(())
 }
 
-/// Hashes one helper with fixed memory use.
+/// Hashes one helper with fixed memory use
 fn sha256_file(path: &Path) -> Result<String> {
     let mut file = File::open(path).map_err(|source| Error::io(path, source))?;
     let mut hasher = Sha256::new();
@@ -243,7 +243,7 @@ fn sha256_file(path: &Path) -> Result<String> {
     Ok(encoded)
 }
 
-/// Checks the exact lowercase hexadecimal form used by release manifests.
+/// Checks the exact lowercase hexadecimal form used by release manifests
 fn is_sha256(value: &str) -> bool {
     value.len() == 64
         && value

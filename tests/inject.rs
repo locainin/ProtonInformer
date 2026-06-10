@@ -1,4 +1,4 @@
-//! One-command Steam process selection checks.
+//! One-command Steam process selection checks
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;

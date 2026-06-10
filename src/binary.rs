@@ -1,8 +1,8 @@
-//! Binary-format inspection and payload validation.
+//! Binary-format inspection and payload validation
 //!
 //! Loader decisions must come from parsed headers rather than filenames. This
 //! module reads each candidate with a strict size cap, identifies its object
-//! format, and records the architecture needed by later policy checks.
+//! format, and records the architecture needed by later policy checks
 
 use std::fmt;
 use std::fs::{self, File};
@@ -20,7 +20,7 @@ use crate::error::{Error, Result};
 use crate::types::Architecture;
 
 // A mod payload should not need hundreds of megabytes of parser input. The cap
-// bounds both memory usage and exposure to malformed binary structures.
+// bounds both memory usage and exposure to malformed binary structures
 pub const MAX_INSPECTION_SIZE: u64 = 256 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,7 +54,7 @@ pub struct BinaryInspection {
 }
 
 impl BinaryInspection {
-    /// Returns true only for formats that a loader backend may consume.
+    /// Returns true only for formats that a loader backend may consume
     #[must_use]
     pub const fn is_loadable_payload(&self) -> bool {
         matches!(
@@ -64,16 +64,16 @@ impl BinaryInspection {
     }
 }
 
-/// Parses a regular file without trusting its extension.
+/// Parses a regular file without trusting its extension
 ///
 /// # Errors
 ///
 /// Returns an error for inaccessible, empty, oversized, malformed, or
-/// unsupported files.
+/// unsupported files
 pub fn inspect(path: &Path) -> Result<BinaryInspection> {
     let metadata = fs::metadata(path).map_err(|source| Error::io(path, source))?;
 
-    // Device files and directories are rejected before any read is attempted.
+    // Device files and directories are rejected before any read is attempted
     if !metadata.is_file() {
         return Err(Error::InvalidBinary {
             path: path.to_path_buf(),
@@ -93,7 +93,7 @@ pub fn inspect(path: &Path) -> Result<BinaryInspection> {
     }
 
     // The reader itself is capped because metadata can become stale before
-    // the file is opened or while another process is replacing it.
+    // the file is opened or while another process is replacing it
     let bytes = read_capped(path)?;
     let size_bytes = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
     if size_bytes == 0 {
@@ -101,7 +101,7 @@ pub fn inspect(path: &Path) -> Result<BinaryInspection> {
     }
 
     // Parsed headers decide which loader world applies. Extensions are only
-    // compared afterward to produce a warning for confusing filenames.
+    // compared afterward to produce a warning for confusing filenames
     let (format, architecture) = match Object::parse(&bytes) {
         Ok(Object::PE(pe)) => {
             let format = if pe.is_lib {
@@ -138,7 +138,7 @@ pub fn inspect(path: &Path) -> Result<BinaryInspection> {
     })
 }
 
-/// Reads at most one byte beyond the accepted payload limit.
+/// Reads at most one byte beyond the accepted payload limit
 fn read_capped(path: &Path) -> Result<Vec<u8>> {
     let mut file = File::open(path).map_err(|source| Error::io(path, source))?;
     let mut bytes = Vec::new();
@@ -157,11 +157,11 @@ fn read_capped(path: &Path) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// Distinguishes position-independent executables from true shared objects.
+/// Distinguishes position-independent executables from true shared objects
 fn classify_elf(object_type: u16, has_interpreter: bool, path: &Path) -> Result<BinaryFormat> {
     match object_type {
         ET_EXEC => Ok(BinaryFormat::ElfExecutable),
-        // Modern PIE executables use ET_DYN but still name a program loader.
+        // Modern PIE executables use ET_DYN but still name a program loader
         ET_DYN if has_interpreter => Ok(BinaryFormat::ElfExecutable),
         ET_DYN => Ok(BinaryFormat::ElfSharedObject),
         other => Err(Error::InvalidBinary {
@@ -202,7 +202,7 @@ fn extension_warning(path: &Path, format: BinaryFormat) -> Option<String> {
         BinaryFormat::ElfSharedObject => Some("so"),
         BinaryFormat::PeExecutable => Some("exe"),
         // Native executable names routinely omit extensions, but a misleading
-        // module extension should still be called out.
+        // module extension should still be called out
         BinaryFormat::ElfExecutable => None,
     };
 

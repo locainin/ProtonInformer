@@ -1,4 +1,4 @@
-//! PE import parser boundary checks.
+//! PE import parser boundary checks
 
 use std::fs;
 
@@ -10,7 +10,7 @@ const OPTIONAL_SIZE: usize = 240;
 const RAW_OFFSET: usize = 0x200;
 const SECTION_RVA: u32 = 0x1000;
 
-/// Builds one minimal PE32+ image with a single import descriptor.
+/// Builds one minimal PE32+ image with a single import descriptor
 fn pe_fixture(import_rva: u32, import_size: u32, name_rva: u32, raw_size: u32) -> Vec<u8> {
     let mut bytes = vec![0_u8; 0x500];
 
@@ -58,7 +58,7 @@ fn pe_fixture(import_rva: u32, import_size: u32, name_rva: u32, raw_size: u32) -
     bytes
 }
 
-/// Writes one temporary fixture and invokes the public bounded parser.
+/// Writes one temporary fixture and invokes the public bounded parser
 fn parse_fixture(bytes: &[u8]) -> Result<Vec<String>, String> {
     let directory = tempdir().expect("temporary directory");
     let path = directory.path().join("fixture.dll");
@@ -66,12 +66,12 @@ fn parse_fixture(bytes: &[u8]) -> Result<Vec<String>, String> {
     dll_names(&path).map_err(|error| error.to_string())
 }
 
-/// Writes one little-endian word into a fixed fixture offset.
+/// Writes one little-endian word into a fixed fixture offset
 fn write_u16(bytes: &mut [u8], offset: usize, value: u16) {
     bytes[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
 }
 
-/// Writes one little-endian double word into a fixed fixture offset.
+/// Writes one little-endian double word into a fixed fixture offset
 fn write_u32(bytes: &mut [u8], offset: usize, value: u32) {
     bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
 }

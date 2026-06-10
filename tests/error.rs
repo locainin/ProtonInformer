@@ -1,4 +1,4 @@
-//! Stable error categories.
+//! Stable error categories
 
 use proton_informer::Error;
 
@@ -32,7 +32,7 @@ fn helper_rejection_preserves_target_side_windows_error() {
 }
 
 #[test]
-fn known_windows_loader_errors_return_human_hints() {
+fn known_windows_loader_errors_return_user_hints() {
     let error = Error::HelperRejected {
         kind: "load_library_rejected".into(),
         message: "LoadLibraryW failed".into(),

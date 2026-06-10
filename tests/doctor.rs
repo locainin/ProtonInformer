@@ -1,4 +1,4 @@
-//! Capability-specific doctor reporting.
+//! Capability-specific doctor reporting
 
 use proton_informer::doctor::{self, CapabilityReadiness};
 

@@ -1,4 +1,4 @@
-//! Prefix-aware Wine path conversion.
+//! Prefix-aware Wine path conversion
 
 use std::fs;
 use std::os::unix::fs::symlink;

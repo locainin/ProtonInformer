@@ -40,7 +40,7 @@ impl Architecture {
 
 impl fmt::Display for Architecture {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Keep human output stable and independent from Rust target names
+        // Keep user-facing output stable and independent from Rust target names
         let value = match self {
             Self::X86 => "x86",
             Self::X86_64 => "x86_64",

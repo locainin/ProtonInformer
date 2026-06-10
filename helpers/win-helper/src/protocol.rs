@@ -1,4 +1,4 @@
-//! Shared protocol dispatch and JSON file handling.
+//! Shared protocol dispatch and JSON file handling
 
 use std::fs::File;
 use std::io::{Read, Write};
@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::error::HelperFailure;
 
-/// Returns helper identity without touching another process.
+/// Returns helper identity without touching another process
 pub fn version() -> HelperVersion {
     HelperVersion {
         architecture: helper_architecture(),
@@ -24,7 +24,7 @@ pub fn version() -> HelperVersion {
     }
 }
 
-/// Reports only operations implemented by this platform build.
+/// Reports only operations implemented by this platform build
 #[cfg(windows)]
 fn capabilities() -> Vec<HelperCapability> {
     vec![
@@ -36,13 +36,13 @@ fn capabilities() -> Vec<HelperCapability> {
     ]
 }
 
-/// Reports only non-mutating smoke checks for a host-native build.
+/// Reports only non-mutating smoke checks for a host-native build
 #[cfg(not(windows))]
 fn capabilities() -> Vec<HelperCapability> {
     vec![HelperCapability::Version, HelperCapability::SelfTest]
 }
 
-/// Reads, validates, executes, and responds to one request file.
+/// Reads, validates, executes, and responds to one request file
 pub fn run_request_file(path: &Path) -> Result<(), HelperFailure> {
     let bytes = match read_request(path) {
         Ok(bytes) => bytes,
@@ -67,7 +67,7 @@ pub fn run_request_file(path: &Path) -> Result<(), HelperFailure> {
     write_json(&response)
 }
 
-/// Reads at most one byte beyond the request size ceiling.
+/// Reads at most one byte beyond the request size ceiling
 fn read_request(path: &Path) -> Result<Vec<u8>, HelperFailure> {
     let mut file = File::open(path).map_err(|source| {
         HelperFailure::io(format!("unable to open {}", path.display()), source)
@@ -87,7 +87,7 @@ fn read_request(path: &Path) -> Result<Vec<u8>, HelperFailure> {
     Ok(bytes)
 }
 
-/// Writes one JSON document to standard output.
+/// Writes one JSON document to standard output
 pub fn write_json<T: Serialize>(value: &T) -> Result<(), HelperFailure> {
     let output = serde_json::to_vec_pretty(value)?;
     let mut stdout = std::io::stdout().lock();
@@ -97,7 +97,7 @@ pub fn write_json<T: Serialize>(value: &T) -> Result<(), HelperFailure> {
         .map_err(|source| HelperFailure::io("unable to write standard output", source))
 }
 
-/// Executes one semantically valid request.
+/// Executes one semantically valid request
 fn dispatch(request: &HelperRequest) -> Result<HelperResult, HelperFailure> {
     match request.operation {
         HelperOperation::QueryProcesses => Ok(HelperResult::QueryProcesses(
@@ -131,7 +131,7 @@ fn dispatch(request: &HelperRequest) -> Result<HelperResult, HelperFailure> {
     }
 }
 
-/// Constructs a protocol-shaped response when no request identity is recoverable.
+/// Constructs a protocol-shaped response when no request identity is recoverable
 fn parse_failure_response(error: &HelperFailure) -> HelperResponse {
     HelperResponse {
         error: Some(error.to_protocol_error()),
@@ -144,7 +144,7 @@ fn parse_failure_response(error: &HelperFailure) -> HelperResponse {
     }
 }
 
-/// Constructs a successful response.
+/// Constructs a successful response
 fn success_response(request: &HelperRequest, result: HelperResult) -> HelperResponse {
     HelperResponse {
         error: None,
@@ -157,7 +157,7 @@ fn success_response(request: &HelperRequest, result: HelperResult) -> HelperResp
     }
 }
 
-/// Constructs a failed response while retaining request correlation.
+/// Constructs a failed response while retaining request correlation
 fn failure_response(request: &HelperRequest, error: &HelperFailure) -> HelperResponse {
     HelperResponse {
         error: Some(error.to_protocol_error()),
@@ -170,7 +170,7 @@ fn failure_response(request: &HelperRequest, error: &HelperFailure) -> HelperRes
     }
 }
 
-/// Returns the compile-time helper architecture.
+/// Returns the compile-time helper architecture
 const fn helper_architecture() -> ProtocolArchitecture {
     #[cfg(target_arch = "x86_64")]
     {

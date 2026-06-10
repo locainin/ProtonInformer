@@ -1,4 +1,4 @@
-//! Discovery for replaceable backend helper executables.
+//! Discovery for replaceable backend helper executables
 
 use std::env;
 use std::os::unix::fs::PermissionsExt;
@@ -9,7 +9,7 @@ use crate::types::Architecture;
 
 pub const HELPER_DIR_ENV: &str = "PROTON_INFORMER_HELPER_DIR";
 
-/// Finds the configured Wine helper without executing it.
+/// Finds the configured Wine helper without executing it
 #[must_use]
 pub fn find_wine_helper(architecture: Architecture) -> Option<PathBuf> {
     let file_names: &[&str] = match architecture {
@@ -35,7 +35,7 @@ pub fn find_wine_helper(architecture: Architecture) -> Option<PathBuf> {
         })
 }
 
-/// Returns the absolute helper-directory environment override.
+/// Returns the absolute helper-directory environment override
 #[must_use]
 pub fn helper_dir_env_override() -> Option<PathBuf> {
     env::var_os(HELPER_DIR_ENV)
@@ -43,7 +43,7 @@ pub fn helper_dir_env_override() -> Option<PathBuf> {
         .filter(|path| path.is_absolute())
 }
 
-/// Reports whether one selected helper came from the environment override.
+/// Reports whether one selected helper came from the environment override
 #[must_use]
 pub fn helper_uses_env_override(path: &Path) -> bool {
     helper_dir_env_override()
@@ -51,13 +51,13 @@ pub fn helper_uses_env_override(path: &Path) -> bool {
         .is_some_and(|directory| path.starts_with(directory))
 }
 
-/// Checks whether an executable name is available through PATH.
+/// Checks whether an executable name is available through PATH
 #[must_use]
 pub fn command_exists(command: &str) -> bool {
     find_command(command).is_some()
 }
 
-/// Finds one executable command through `PATH`.
+/// Finds one executable command through `PATH`
 #[must_use]
 pub fn find_command(command: &str) -> Option<PathBuf> {
     let path = env::var_os("PATH")?;
@@ -67,7 +67,7 @@ pub fn find_command(command: &str) -> Option<PathBuf> {
         .find(|candidate| is_executable(candidate))
 }
 
-/// Checks the regular-file and Unix executable permission bits.
+/// Checks the regular-file and Unix executable permission bits
 #[cfg(unix)]
 fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
@@ -78,7 +78,7 @@ fn is_executable(path: &Path) -> bool {
             .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0)
 }
 
-/// Uses the platform's regular-file behavior where Unix mode bits are absent.
+/// Uses the platform's regular-file behavior where Unix mode bits are absent
 #[cfg(not(unix))]
 fn is_executable(path: &Path) -> bool {
     path.is_file()
@@ -111,7 +111,7 @@ fn helper_directories(architecture: Architecture) -> Vec<PathBuf> {
     directories
 }
 
-/// Rejects helpers or containing directories writable by group or other users.
+/// Rejects helpers or containing directories writable by group or other users
 pub(crate) fn helper_permissions_are_trusted(path: &Path) -> bool {
     let file_trusted = path
         .metadata()

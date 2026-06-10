@@ -1,4 +1,4 @@
-//! Shared type behavior.
+//! Shared type behavior
 
 use proton_informer::types::Architecture;
 

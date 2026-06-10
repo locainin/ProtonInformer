@@ -1,4 +1,4 @@
-//! Loaded-module identity and conflict checks.
+//! Loaded-module identity and conflict checks
 
 use std::path::Path;
 
@@ -6,7 +6,7 @@ use proton_informer_helper_protocol::{HelperPayload, WindowsModuleInfo};
 
 use super::payload::sha256_file;
 
-/// Confirms an already-loaded same-name module is byte-identical.
+/// Confirms an already-loaded same-name module is byte-identical
 pub(super) fn module_matches_payload(module: &WindowsModuleInfo, payload: &HelperPayload) -> bool {
     let path = Path::new(&module.windows_path);
     path.metadata().is_ok_and(|metadata| {
@@ -16,7 +16,7 @@ pub(super) fn module_matches_payload(module: &WindowsModuleInfo, payload: &Helpe
     })
 }
 
-/// Finds an exact case-insensitive Windows module path.
+/// Finds an exact case-insensitive Windows module path
 pub(super) fn find_module<'a>(
     modules: &'a [WindowsModuleInfo],
     expected_path: &str,
@@ -26,7 +26,7 @@ pub(super) fn find_module<'a>(
         .find(|module| normalized_path(&module.windows_path) == normalized_path(expected_path))
 }
 
-/// Finds a same-name module loaded from a different full path.
+/// Finds a same-name module loaded from a different full path
 pub(super) fn find_basename_conflict<'a>(
     modules: &'a [WindowsModuleInfo],
     expected_path: &str,
@@ -38,14 +38,14 @@ pub(super) fn find_basename_conflict<'a>(
     })
 }
 
-/// Normalizes separators and extended prefixes for case-insensitive comparison.
+/// Normalizes separators and extended prefixes for case-insensitive comparison
 fn normalized_path(path: &str) -> String {
     normalize_extended_path(path)
         .replace('/', "\\")
         .to_ascii_lowercase()
 }
 
-/// Removes extended prefixes while preserving a valid UNC prefix.
+/// Removes extended prefixes while preserving a valid UNC prefix
 fn normalize_extended_path(path: &str) -> String {
     path.strip_prefix(r"\\?\UNC\").map_or_else(
         || path.strip_prefix(r"\\?\").unwrap_or(path).to_owned(),
@@ -53,7 +53,7 @@ fn normalize_extended_path(path: &str) -> String {
     )
 }
 
-/// Returns the final Windows path component.
+/// Returns the final Windows path component
 fn windows_basename(path: &str) -> Option<&str> {
     path.rsplit(['\\', '/'])
         .find(|component| !component.is_empty())

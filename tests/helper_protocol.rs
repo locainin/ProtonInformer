@@ -1,4 +1,4 @@
-//! Linux controller request construction checks.
+//! Linux controller request construction checks
 
 use std::fs;
 use std::os::unix::fs::symlink;
@@ -14,7 +14,7 @@ use proton_informer::types::Architecture;
 use proton_informer_helper_protocol::{ProtocolArchitecture, TargetSelector, WindowsProcessInfo};
 use tempfile::tempdir;
 
-/// Builds a Wine target with enough trusted identity for helper planning.
+/// Builds a Wine target with enough trusted identity for helper planning
 fn target(prefix: PathBuf, executable: PathBuf) -> ProcessInfo {
     ProcessInfo {
         classification_confidence: ClassificationConfidence::High,
@@ -40,7 +40,7 @@ fn target(prefix: PathBuf, executable: PathBuf) -> ProcessInfo {
     }
 }
 
-/// Builds one exact helper-side process identity.
+/// Builds one exact helper-side process identity
 fn windows_target() -> WindowsProcessInfo {
     WindowsProcessInfo {
         architecture: ProtocolArchitecture::X86_64,

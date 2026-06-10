@@ -1,4 +1,4 @@
-//! Protocol serialization and semantic validation.
+//! Protocol serialization and semantic validation
 
 use proton_informer_helper_protocol::{
     HelperError, HelperOperation, HelperOptions, HelperPayload, HelperRequest, HelperResponse,

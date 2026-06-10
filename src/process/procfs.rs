@@ -1,4 +1,4 @@
-//! Bounded `/proc` readers and process assembly.
+//! Bounded `/proc` readers and process assembly
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -11,10 +11,10 @@ use crate::binary;
 use crate::error::{Error, Result};
 use crate::types::Architecture;
 
-/// Maximum command-line or environment bytes retained from one process.
+/// Maximum command-line or environment bytes retained from one process
 const MAX_PROC_FIELD_SIZE: u64 = 4 * 1024 * 1024;
 
-/// Environment keys that identify Wine or Proton without retaining secrets.
+/// Environment keys that identify Wine or Proton without retaining secrets
 const SELECTED_ENVIRONMENT_KEYS: &[&str] = &[
     "WINEPREFIX",
     "STEAM_COMPAT_DATA_PATH",
@@ -26,12 +26,12 @@ const SELECTED_ENVIRONMENT_KEYS: &[&str] = &[
     "PROTONPATH",
 ];
 
-/// Inspects one process without retaining its full environment.
+/// Inspects one process without retaining its full environment
 ///
 /// # Errors
 ///
 /// Returns an error when the process does not exist or required `/proc` fields
-/// cannot be read.
+/// cannot be read
 pub fn inspect(pid: u32) -> Result<ProcessInfo> {
     let process_dir = PathBuf::from(format!("/proc/{pid}"));
     if !process_dir.is_dir() {
@@ -89,13 +89,13 @@ pub fn inspect(pid: u32) -> Result<ProcessInfo> {
     let process_evidence = evidence::collect(&name, executable.as_deref(), &command, &environment);
     let (target_kind, classification_confidence) = evidence::classify(&process_evidence);
 
-    // Host architecture is valid only for native planning.
+    // Host architecture is valid only for native planning
     let host_architecture = executable
         .as_deref()
         .and_then(|path| binary::inspect(path).ok())
         .map_or(Architecture::Unknown, |inspection| inspection.architecture);
 
-    // Guest architecture comes only from a readable PE executable.
+    // Guest architecture comes only from a readable PE executable
     let guest_executable = (target_kind == TargetKind::WineProtonWindows)
         .then(|| {
             evidence::find_guest_executable(
@@ -133,14 +133,14 @@ pub fn inspect(pid: u32) -> Result<ProcessInfo> {
     })
 }
 
-/// Lists every process whose required `/proc` fields are readable.
+/// Lists every process whose required `/proc` fields are readable
 #[must_use]
 pub fn list() -> Vec<ProcessInfo> {
     let Ok(entries) = fs::read_dir("/proc") else {
         return Vec::new();
     };
 
-    // Exits and permission failures are normal during a live process scan.
+    // Exits and permission failures are normal during a live process scan
     let mut processes: Vec<_> = entries
         .flatten()
         .filter_map(|entry| entry.file_name().to_str()?.parse::<u32>().ok())
@@ -150,7 +150,7 @@ pub fn list() -> Vec<ProcessInfo> {
     processes
 }
 
-/// Reads a NUL-separated command line with a memory ceiling.
+/// Reads a NUL-separated command line with a memory ceiling
 fn read_command_line(path: &Path) -> Result<Vec<String>> {
     let bytes = read_capped(path)?;
     Ok(bytes
@@ -160,7 +160,7 @@ fn read_command_line(path: &Path) -> Result<Vec<String>> {
         .collect())
 }
 
-/// Reads selected environment values while discarding unrelated secrets.
+/// Reads selected environment values while discarding unrelated secrets
 fn read_selected_environment(path: &Path) -> (BTreeMap<String, String>, EnvironmentStatus) {
     let bytes = match read_capped(path) {
         Ok(bytes) => bytes,
@@ -188,7 +188,7 @@ fn read_selected_environment(path: &Path) -> (BTreeMap<String, String>, Environm
     (selected, EnvironmentStatus::Read)
 }
 
-/// Reads all four Linux UIDs from a status file.
+/// Reads all four Linux UIDs from a status file
 fn read_uids(path: &Path) -> Option<ProcessUids> {
     let status = fs::read_to_string(path).ok()?;
     let mut values = status
@@ -206,7 +206,7 @@ fn read_uids(path: &Path) -> Option<ProcessUids> {
     })
 }
 
-/// Reads one pseudo-file without allowing unbounded allocation.
+/// Reads one pseudo-file without allowing unbounded allocation
 fn read_capped(path: &Path) -> Result<Vec<u8>> {
     let file = fs::File::open(path).map_err(|source| Error::io(path, source))?;
     let mut bytes = Vec::new();
@@ -222,7 +222,7 @@ fn read_capped(path: &Path) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// Derives an existing prefix from selected environment values.
+/// Derives an existing prefix from selected environment values
 fn wine_prefix_from_environment(environment: &BTreeMap<String, String>) -> Option<PathBuf> {
     environment
         .get("WINEPREFIX")
@@ -236,14 +236,14 @@ fn wine_prefix_from_environment(environment: &BTreeMap<String, String>) -> Optio
         .filter(|path| path.is_dir())
 }
 
-/// Extracts an application identifier from known environment keys.
+/// Extracts an application identifier from known environment keys
 fn steam_app_id_from_environment(environment: &BTreeMap<String, String>) -> Option<u32> {
     ["STEAM_COMPAT_APP_ID", "SteamAppId", "SteamGameId"]
         .into_iter()
         .find_map(|key| environment.get(key)?.parse().ok())
 }
 
-/// Extracts an application identifier from a compatdata directory.
+/// Extracts an application identifier from a compatdata directory
 fn steam_app_id_from_compatdata_dir(path: &Path) -> Option<u32> {
     path.file_name()?.to_str()?.parse().ok()
 }

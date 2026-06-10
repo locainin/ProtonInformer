@@ -1,7 +1,7 @@
-//! Core inspection and planning library for `ProtonInformer`.
+//! Core inspection and planning library for `ProtonInformer`
 //!
 //! Modules expose typed data for the CLI and other clients. Remote loading is
-//! delegated to the Windows helper after controller-side validation.
+//! delegated to the Windows helper after controller-side validation
 
 #![forbid(unsafe_code)]
 #![deny(warnings)]

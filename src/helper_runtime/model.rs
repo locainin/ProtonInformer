@@ -1,4 +1,4 @@
-//! Serializable helper runtime, invocation, and planning models.
+//! Serializable helper runtime, invocation, and planning models
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -16,60 +16,60 @@ pub enum PayloadPathMode {
     OriginalPath,
 }
 
-/// Runtime used to execute the Windows helper.
+/// Runtime used to execute the Windows helper
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum HelperRuntime {
-    /// Steam Proton invocation with target identity variables.
+    /// Steam Proton invocation with target identity variables
     Proton {
-        /// Steam application identifier.
+        /// Steam application identifier
         app_id: u32,
-        /// Steam compatdata directory.
+        /// Steam compatdata directory
         compatdata_dir: PathBuf,
-        /// Proton launcher script.
+        /// Proton launcher script
         proton_path: PathBuf,
-        /// Steam client root.
+        /// Steam client root
         steam_client_path: PathBuf,
     },
-    /// Plain Wine invocation.
+    /// Plain Wine invocation
     Wine {
-        /// Existing Wine prefix.
+        /// Existing Wine prefix
         prefix: PathBuf,
-        /// Wine executable.
+        /// Wine executable
         wine_binary: PathBuf,
     },
 }
 
-/// Exact executable, arguments, and environment for one helper run.
+/// Exact executable, arguments, and environment for one helper run
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelperInvocation {
-    /// Helper command arguments.
+    /// Helper command arguments
     pub arguments: Vec<String>,
-    /// Environment variables required by the runtime.
+    /// Environment variables required by the runtime
     pub environment: BTreeMap<String, String>,
-    /// Program launched by the controller.
+    /// Program launched by the controller
     pub program: PathBuf,
-    /// Runtime classification.
+    /// Runtime classification
     pub runtime: HelperRuntime,
 }
 
-/// Persisted dry-run artifacts and typed invocation.
+/// Persisted dry-run artifacts and typed invocation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoadDryRunPlan {
-    /// Windows helper path visible inside the selected prefix.
+    /// Windows helper path visible inside the selected prefix
     pub helper_windows_path: String,
-    /// Exact helper invocation.
+    /// Exact helper invocation
     pub invocation: HelperInvocation,
     /// Path mode used for the helper request
     pub payload_path_mode: PayloadPathMode,
     /// Host payload path referenced by the helper request
     pub payload_host_path: PathBuf,
-    /// Validated request body.
+    /// Validated request body
     pub request: HelperRequest,
-    /// Host request path.
+    /// Host request path
     pub request_host_path: PathBuf,
-    /// Windows request path visible inside the prefix.
+    /// Windows request path visible inside the prefix
     pub request_windows_path: String,
-    /// Per-request state directory.
+    /// Per-request state directory
     pub run_directory: PathBuf,
 }
