@@ -388,7 +388,7 @@ dependencies = [
 
 [[package]]
 name = "proton-informer"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "clap",
  "goblin",
@@ -404,7 +404,7 @@ dependencies = [
 
 [[package]]
 name = "proton-informer-helper-protocol"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -413,7 +413,7 @@ dependencies = [
 
 [[package]]
 name = "proton-informer-win-helper"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "proton-informer-helper-protocol",
  "serde",
