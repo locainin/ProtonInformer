@@ -85,8 +85,11 @@ jobs:
               ;;
           esac
 
-          sha256sum "$output" > "$output.sha256"
-          sha256sum --check "$output.sha256"
+          (
+            cd dist
+            sha256sum "${{ matrix.output }}" > "${{ matrix.output }}.sha256"
+            sha256sum --check "${{ matrix.output }}.sha256"
+          )
       - uses: actions/upload-artifact@v7
         with:
           name: proton-informer-helper-${{ matrix.target }}
@@ -149,6 +152,11 @@ jobs:
           "$archive_root/proton-informer" --help
           "$archive_root/proton-informer" verify-install --arch x86-64
           "$archive_root/proton-informer" verify-install --arch x86
+          (
+            cd "$archive_root/helpers"
+            sha256sum --check proton-informer-win-helper.exe.sha256
+            sha256sum --check proton-informer-win32-helper.exe.sha256
+          )
       - uses: actions/upload-artifact@v7
         with:
           name: proton-informer-linux-x86_64
