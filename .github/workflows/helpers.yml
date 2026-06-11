@@ -130,6 +130,10 @@ jobs:
             cp README.md "dist/${package}/README.md"
           fi
 
+          if [ -d docs ]; then
+            cp -R docs "dist/${package}/docs"
+          fi
+
           if [ -f LICENSE ]; then
             cp LICENSE "dist/${package}/LICENSE"
           fi
@@ -150,6 +154,9 @@ jobs:
           test -n "$archive_root"
           "$archive_root/proton-informer" --version
           "$archive_root/proton-informer" --help
+          test -f "$archive_root/docs/usage.md"
+          test -f "$archive_root/docs/cli.md"
+          test -f "$archive_root/docs/assets/logo.png"
           "$archive_root/proton-informer" verify-install --arch x86-64
           "$archive_root/proton-informer" verify-install --arch x86
           (
