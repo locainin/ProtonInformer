@@ -84,8 +84,12 @@ struct TargetLoadOptions<'a> {
 
 fn run_load_for_target(options: &TargetLoadOptions<'_>) -> Result<()> {
     let payload = binary::inspect(options.payload_path)?;
-    let plan =
-        decision::plan_running(payload, options.target.clone(), options.target_architecture)?;
+    let plan = decision::plan_running(
+        payload,
+        options.target.clone(),
+        options.target_architecture,
+        options.payload_path_mode,
+    )?;
     if !plan.executable_now {
         return Err(Error::Rejected(
             "load is not executable because one or more requirements did not fully pass; run plan \

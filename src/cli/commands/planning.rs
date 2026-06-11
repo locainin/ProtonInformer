@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::binary;
 use crate::decision;
 use crate::error::{Error, Result};
+use crate::helper_runtime::PayloadPathMode;
 use crate::process;
 use crate::steam;
 
@@ -43,11 +44,12 @@ pub(super) fn run_plan(
     payload: &Path,
     pid: u32,
     target_architecture: Option<crate::types::Architecture>,
+    payload_path_mode: PayloadPathMode,
     json: bool,
 ) -> Result<()> {
     let payload = binary::inspect(payload)?;
     let target = process::inspect(pid)?;
-    let plan = decision::plan_running(payload, target, target_architecture)?;
+    let plan = decision::plan_running(payload, target, target_architecture, payload_path_mode)?;
     if json {
         output::error::print_json(&plan)
     } else {
