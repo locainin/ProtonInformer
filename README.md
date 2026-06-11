@@ -44,7 +44,7 @@ proton-informer-win32-helper.exe    32-bit Windows helper
 
 Users normally run `proton-informer`, not the helper executables directly.
 
-Download, verification, and command examples are available in the [usage guide](docs/usage.md).
+Download and workflow examples are available in the [usage guide](docs/usage.md). Full command behavior is covered in the [CLI reference](docs/cli.md).
 
 ## How it works
 

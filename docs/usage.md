@@ -4,6 +4,8 @@ ProtonInformer loads Windows PE DLLs into running Windows processes hosted by Wi
 
 Loading a DLL executes its code inside the selected process. Only use payloads from trusted sources and verify the selected target before passing `--yes`.
 
+For a flag-by-flag command reference, see [CLI Reference](cli.md).
+
 ## Download
 
 Download the Linux archive and checksum from the [latest release](https://github.com/locainin/ProtonInformer/releases/latest).
@@ -54,6 +56,12 @@ Inspect readiness:
 ```bash
 ./proton-informer doctor
 ./proton-informer doctor --pid 12345
+```
+
+Use `--debug` with text output when the selected Proton runtime, Wine prefix, compatdata directory, or Steam environment matters:
+
+```bash
+./proton-informer --debug inject --app-id 311210 --process BlackOps3.exe --payload ./mod.dll --dry-run
 ```
 
 ## Inspect And Plan
@@ -140,6 +148,8 @@ game-directory-relative lookup.
 
 Module output shows the Windows PID, process identity, module basename, and loaded Windows path.
 
+Load output includes a module diff with before/after counts and newly observed module paths. If the DLL was already present, the result reports `Already loaded` and `added: none`.
+
 ## Manage Run State
 
 List owner-controlled request directories:
@@ -196,3 +206,5 @@ Place `--json` before the command:
 ```
 
 Structured load failures include stable error kinds and target-side Windows error codes when Wine exposes them.
+
+Text output uses terminal color for success, warning, and failure labels when color is supported. Set `NO_COLOR=1` to disable ANSI color.
