@@ -2,7 +2,7 @@
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
@@ -41,10 +41,13 @@ pub fn execute(invocation: &HelperInvocation, timeout_ms: u64) -> Result<HelperE
     }
 
     let directory = std::env::temp_dir().join(format!("proton-informer-helper-{}", Uuid::new_v4()));
-    fs::create_dir(&directory).map_err(|source| Error::io(&directory, source))?;
+    // Private mode is applied at creation, before any helper output files exist
+    let mut builder = fs::DirBuilder::new();
+    builder.mode(0o700);
+    builder
+        .create(&directory)
+        .map_err(|source| Error::io(&directory, source))?;
     let result = (|| {
-        fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))
-            .map_err(|source| Error::io(&directory, source))?;
         let stdout_path = directory.join("stdout");
         let stderr_path = directory.join("stderr");
         let stdout = private_output_file(&stdout_path)?;

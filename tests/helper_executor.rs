@@ -1,6 +1,7 @@
 //! Bounded helper process execution checks
 
 use std::collections::BTreeMap;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use proton_informer::helper;
@@ -57,6 +58,22 @@ fn executor_can_retain_private_run_output_for_diagnostics() {
     assert_eq!(output.stdout, "diagnostic");
     assert!(directory.path().join("helper.stdout").is_file());
     assert!(directory.path().join("helper.stderr").is_file());
+    assert_eq!(
+        std::fs::metadata(directory.path().join("helper.stdout"))
+            .expect("stdout metadata")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+    assert_eq!(
+        std::fs::metadata(directory.path().join("helper.stderr"))
+            .expect("stderr metadata")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
 }
 
 #[test]
