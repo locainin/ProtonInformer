@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use proton_informer::binary::{BinaryFormat, BinaryInspection};
 use proton_informer::decision::{Backend, OverridePlacement, plan_override, plan_running};
+use proton_informer::helper_runtime::PayloadPathMode;
 use proton_informer::process::{
     ClassificationConfidence, EnvironmentStatus, ProcessInfo, ProcessUids, TargetKind,
 };
@@ -53,8 +54,13 @@ fn target(kind: TargetKind) -> ProcessInfo {
 fn architecture_mismatch_is_rejected() {
     let mut x86_payload = payload(BinaryFormat::PeDll);
     x86_payload.architecture = Architecture::X86;
-    let error = plan_running(x86_payload, target(TargetKind::WineProtonWindows), None)
-        .expect_err("reject architecture mismatch");
+    let error = plan_running(
+        x86_payload,
+        target(TargetKind::WineProtonWindows),
+        None,
+        PayloadPathMode::StagedCopy,
+    )
+    .expect_err("reject architecture mismatch");
 
     assert!(error.to_string().contains("does not match"));
 }
@@ -65,6 +71,7 @@ fn explicit_architecture_cannot_contradict_discovered_guest() {
         payload(BinaryFormat::PeDll),
         target(TargetKind::WineProtonWindows),
         Some(Architecture::X86),
+        PayloadPathMode::StagedCopy,
     )
     .expect_err("contradictory architecture evidence must fail");
 
@@ -78,8 +85,13 @@ fn explicit_guest_architecture_allows_wine_plan() {
     let mut x86_payload = payload(BinaryFormat::PeDll);
     x86_payload.architecture = Architecture::X86;
 
-    let result = plan_running(x86_payload, wine_target, Some(Architecture::X86))
-        .expect("explicit architecture plan");
+    let result = plan_running(
+        x86_payload,
+        wine_target,
+        Some(Architecture::X86),
+        PayloadPathMode::StagedCopy,
+    )
+    .expect("explicit architecture plan");
 
     assert_eq!(result.backend, Backend::WinePeHelper);
 }
@@ -110,6 +122,7 @@ fn pe_dll_is_rejected_for_native_target() {
         payload(BinaryFormat::PeDll),
         target(TargetKind::NativeLinux),
         None,
+        PayloadPathMode::StagedCopy,
     )
     .expect_err("reject PE DLL for ELF loader");
 
@@ -120,8 +133,64 @@ fn pe_dll_is_rejected_for_native_target() {
 fn wine_target_never_falls_back_to_host_architecture() {
     let mut wine_target = target(TargetKind::WineProtonWindows);
     wine_target.guest_architecture = None;
-    let error = plan_running(payload(BinaryFormat::PeDll), wine_target, None)
-        .expect_err("unknown guest architecture must fail");
+    let error = plan_running(
+        payload(BinaryFormat::PeDll),
+        wine_target,
+        None,
+        PayloadPathMode::StagedCopy,
+    )
+    .expect_err("unknown guest architecture must fail");
 
     assert!(error.to_string().contains("--target-arch"));
+}
+
+#[test]
+fn staged_copy_plan_does_not_require_source_payload_drive_mapping() {
+    let directory = tempdir().expect("temporary directory");
+    let mut wine_target = target(TargetKind::WineProtonWindows);
+    wine_target.wine_prefix = Some(directory.path().to_path_buf());
+
+    let plan = plan_running(
+        payload(BinaryFormat::PeDll),
+        wine_target,
+        None,
+        PayloadPathMode::StagedCopy,
+    )
+    .expect("staged-copy plan");
+
+    assert_eq!(plan.payload_path_mode, PayloadPathMode::StagedCopy);
+    assert!(plan.requirements.iter().any(|check| {
+        check.name == "payload_path_mode"
+            && check.status == proton_informer::doctor::CheckStatus::Passed
+    }));
+    assert!(
+        plan.requirements
+            .iter()
+            .all(|check| check.name != "payload_windows_path")
+    );
+}
+
+#[test]
+fn original_path_plan_requires_source_payload_drive_mapping() {
+    let directory = tempdir().expect("temporary directory");
+    let mut wine_target = target(TargetKind::WineProtonWindows);
+    wine_target.wine_prefix = Some(directory.path().to_path_buf());
+
+    let plan = plan_running(
+        payload(BinaryFormat::PeDll),
+        wine_target,
+        None,
+        PayloadPathMode::OriginalPath,
+    )
+    .expect("original-path plan");
+
+    let requirement = plan
+        .requirements
+        .iter()
+        .find(|check| check.name == "payload_windows_path")
+        .expect("source path visibility requirement");
+    assert_eq!(
+        requirement.status,
+        proton_informer::doctor::CheckStatus::Failed
+    );
 }
