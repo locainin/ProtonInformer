@@ -129,9 +129,12 @@ Validate a payload and target compatibility without writing helper request files
 ```bash
 ./proton-informer plan --pid 12345 --payload ./payload.dll
 ./proton-informer plan --pid 12345 --payload ./payload.dll --target-arch x86-64
+./proton-informer plan --pid 12345 --payload ./payload.dll --original-payload-path
 ```
 
 Wine targets do not fall back to the Linux host architecture. If the guest architecture is unknown, provide `--target-arch`.
+
+The default plan models staged-copy mode, so the source payload path does not need to be visible through the selected prefix's Wine drives. `--original-payload-path` keeps the source-path visibility requirement because the helper will load that path directly.
 
 ### `processes`
 

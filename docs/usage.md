@@ -10,14 +10,14 @@ For a flag-by-flag command reference, see [CLI Reference](cli.md).
 
 Download the Linux archive and checksum from the [latest release](https://github.com/locainin/ProtonInformer/releases/latest).
 
-For v0.1.5:
+For v0.1.6:
 
 ```bash
-curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.5/proton-informer-v0.1.5-linux-x86_64.tar.gz
-curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.5/proton-informer-v0.1.5-linux-x86_64.tar.gz.sha256
-sha256sum --check proton-informer-v0.1.5-linux-x86_64.tar.gz.sha256
-tar -xzf proton-informer-v0.1.5-linux-x86_64.tar.gz
-cd proton-informer-v0.1.5-linux-x86_64
+curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.6/proton-informer-v0.1.6-linux-x86_64.tar.gz
+curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.6/proton-informer-v0.1.6-linux-x86_64.tar.gz.sha256
+sha256sum --check proton-informer-v0.1.6-linux-x86_64.tar.gz.sha256
+tar -xzf proton-informer-v0.1.6-linux-x86_64.tar.gz
+cd proton-informer-v0.1.6-linux-x86_64
 ```
 
 Keep `proton-informer` beside the `helpers/` directory. The controller discovers the packaged x86 and x86_64 Windows helpers from that layout.
@@ -77,6 +77,8 @@ Check target compatibility without loading:
 ```bash
 ./proton-informer plan --pid 12345 --payload ./mod.dll
 ```
+
+`plan` uses the default staged-copy mode unless `--original-payload-path` is passed.
 
 Create the exact helper request without executing it:
 
@@ -205,6 +207,6 @@ Place `--json` before the command:
 ./proton-informer --json inject --pid 12345 --payload ./mod.dll --dry-run
 ```
 
-Structured load failures include stable error kinds and target-side Windows error codes when Wine exposes them.
+Structured load failures include stable error kinds. Windows error codes appear only for helper-side Windows API failures where a real code is available; standard `LoadLibraryW` NULL returns do not expose target-side `GetLastError`.
 
 Text output uses terminal color for success, warning, and failure labels when color is supported. Set `NO_COLOR=1` to disable ANSI color.
