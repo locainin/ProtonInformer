@@ -1,31 +1,21 @@
 //! Discovery for replaceable backend helper executables
 
 use std::env;
-use std::os::unix::fs::PermissionsExt;
+use std::fs;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 use crate::binary::{self, BinaryFormat};
 use crate::types::Architecture;
 
 pub const HELPER_DIR_ENV: &str = "PROTON_INFORMER_HELPER_DIR";
+const ROOT_UID: u32 = 0;
 
 /// Finds the configured Wine helper without executing it
 #[must_use]
 pub fn find_wine_helper(architecture: Architecture) -> Option<PathBuf> {
-    let file_names: &[&str] = match architecture {
-        Architecture::X86 => &["proton-informer-win32-helper.exe"],
-        Architecture::X86_64 => &["proton-informer-win-helper.exe"],
-        Architecture::Arm | Architecture::Aarch64 | Architecture::Unknown => return None,
-    };
-
-    helper_directories(architecture)
+    wine_helper_candidates(architecture)
         .into_iter()
-        .flat_map(|directory| {
-            file_names
-                .iter()
-                .map(move |file_name| directory.join(file_name))
-        })
-        .filter_map(|candidate| candidate.canonicalize().ok())
         .find(|candidate| {
             helper_permissions_are_trusted(candidate)
                 && binary::inspect(candidate).is_ok_and(|inspection| {
@@ -33,6 +23,22 @@ pub fn find_wine_helper(architecture: Architecture) -> Option<PathBuf> {
                         && inspection.architecture == architecture
                 })
         })
+}
+
+pub(crate) fn wine_helper_candidates(architecture: Architecture) -> Vec<PathBuf> {
+    let Some(file_names) = helper_file_names(architecture) else {
+        return Vec::new();
+    };
+
+    // Keep raw paths so symlink checks see the helper name that lookup found
+    helper_directories(architecture)
+        .into_iter()
+        .flat_map(|directory| {
+            file_names
+                .iter()
+                .map(move |file_name| directory.join(file_name))
+        })
+        .collect()
 }
 
 /// Returns the absolute helper-directory environment override
@@ -48,7 +54,9 @@ pub fn helper_dir_env_override() -> Option<PathBuf> {
 pub fn helper_uses_env_override(path: &Path) -> bool {
     helper_dir_env_override()
         .and_then(|directory| directory.canonicalize().ok())
-        .is_some_and(|directory| path.starts_with(directory))
+        // Source reporting can follow the final trusted helper path safely
+        .zip(path.canonicalize().ok())
+        .is_some_and(|(directory, helper)| helper.starts_with(directory))
 }
 
 /// Checks whether an executable name is available through PATH
@@ -111,14 +119,114 @@ fn helper_directories(architecture: Architecture) -> Vec<PathBuf> {
     directories
 }
 
-/// Rejects helpers or containing directories writable by group or other users
+const fn helper_file_names(architecture: Architecture) -> Option<&'static [&'static str]> {
+    match architecture {
+        Architecture::X86 => Some(&["proton-informer-win32-helper.exe"]),
+        Architecture::X86_64 => Some(&["proton-informer-win-helper.exe"]),
+        Architecture::Arm | Architecture::Aarch64 | Architecture::Unknown => None,
+    }
+}
+
+/// Returns why a helper path cannot be trusted before execution
+#[must_use]
+pub fn helper_trust_error(path: &Path) -> Option<String> {
+    let Some(current_uid) = current_uid() else {
+        return Some("current user id could not be read from procfs".into());
+    };
+    // Do not follow helper symlinks before checking the selected file itself
+    let file = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            return Some(format!(
+                "helper file cannot be inspected: {}: {error}",
+                path.display()
+            ));
+        }
+    };
+    if file.file_type().is_symlink() {
+        return Some(format!("helper file is a symlink: {}", path.display()));
+    }
+    if !file.is_file() {
+        return Some(format!(
+            "helper path is not a regular file: {}",
+            path.display()
+        ));
+    }
+    if !trusted_owner(file.uid(), current_uid) {
+        return Some(format!(
+            "helper file is not owned by the current user or root: {}",
+            path.display()
+        ));
+    }
+    // A writable helper can change between verification and execution
+    if file.permissions().mode() & 0o022 != 0 {
+        return Some(format!(
+            "helper file is group-writable or world-writable: {}",
+            path.display()
+        ));
+    }
+
+    let Some(directory) = path.parent() else {
+        return Some(format!(
+            "helper path has no parent directory: {}",
+            path.display()
+        ));
+    };
+    // The parent controls replacement of the helper filename
+    let directory_metadata = match fs::symlink_metadata(directory) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            return Some(format!(
+                "helper directory cannot be inspected: {}: {error}",
+                directory.display()
+            ));
+        }
+    };
+    if directory_metadata.file_type().is_symlink() {
+        return Some(format!(
+            "helper directory is a symlink: {}",
+            directory.display()
+        ));
+    }
+    if !directory_metadata.is_dir() {
+        return Some(format!(
+            "helper parent is not a real directory: {}",
+            directory.display()
+        ));
+    }
+    if !trusted_owner(directory_metadata.uid(), current_uid) {
+        return Some(format!(
+            "helper directory is not owned by the current user or root: {}",
+            directory.display()
+        ));
+    }
+    // Directory write access would allow swapping a trusted helper path
+    if directory_metadata.permissions().mode() & 0o022 != 0 {
+        return Some(format!(
+            "helper directory is group-writable or world-writable: {}",
+            directory.display()
+        ));
+    }
+
+    None
+}
+
+/// Rejects helpers or containing directories with unsafe ownership or mode
 pub(crate) fn helper_permissions_are_trusted(path: &Path) -> bool {
-    let file_trusted = path
-        .metadata()
-        .is_ok_and(|metadata| metadata.permissions().mode() & 0o022 == 0);
-    let directory_trusted = path
-        .parent()
-        .and_then(|directory| directory.metadata().ok())
-        .is_some_and(|metadata| metadata.permissions().mode() & 0o022 == 0);
-    file_trusted && directory_trusted
+    helper_trust_error(path).is_none()
+}
+
+const fn trusted_owner(owner_uid: u32, current_uid: u32) -> bool {
+    owner_uid == ROOT_UID || owner_uid == current_uid
+}
+
+fn current_uid() -> Option<u32> {
+    let status = fs::read_to_string("/proc/self/status").ok()?;
+    status
+        .lines()
+        .find(|line| line.starts_with("Uid:"))?
+        .split_ascii_whitespace()
+        .nth(2)?
+        .parse()
+        .ok()
 }
