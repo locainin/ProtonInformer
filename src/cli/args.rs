@@ -199,6 +199,10 @@ pub(super) enum Command {
         /// Explicit guest architecture when process inspection cannot prove it
         #[arg(long, value_enum)]
         target_arch: Option<Architecture>,
+
+        /// Plan the less-isolated original payload path instead of a private staged copy
+        #[arg(long)]
+        original_payload_path: bool,
     },
 
     /// List readable Linux, Wine, and Proton processes

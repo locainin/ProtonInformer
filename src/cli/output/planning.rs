@@ -31,6 +31,7 @@ pub(in crate::cli) fn print_load_plan(plan: &LoadPlan) {
     println!("Decision");
     println!("  Backend:             {:?}", plan.backend);
     println!("  Target architecture: {}", plan.target_architecture);
+    println!("  Payload path mode:   {:?}", plan.payload_path_mode);
     println!("  Executable now:      {}", plan.executable_now);
     println!("  Reason:              {}", plan.note);
     for requirement in &plan.requirements {
