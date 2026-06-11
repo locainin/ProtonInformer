@@ -8,14 +8,14 @@ Loading a DLL executes its code inside the selected process. Only use payloads f
 
 Download the Linux archive and checksum from the [latest release](https://github.com/locainin/ProtonInformer/releases/latest).
 
-For v0.1.4:
+For v0.1.5:
 
 ```bash
-curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.4/proton-informer-v0.1.4-linux-x86_64.tar.gz
-curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.4/proton-informer-v0.1.4-linux-x86_64.tar.gz.sha256
-sha256sum --check proton-informer-v0.1.4-linux-x86_64.tar.gz.sha256
-tar -xzf proton-informer-v0.1.4-linux-x86_64.tar.gz
-cd proton-informer-v0.1.4-linux-x86_64
+curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.5/proton-informer-v0.1.5-linux-x86_64.tar.gz
+curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.5/proton-informer-v0.1.5-linux-x86_64.tar.gz.sha256
+sha256sum --check proton-informer-v0.1.5-linux-x86_64.tar.gz.sha256
+tar -xzf proton-informer-v0.1.5-linux-x86_64.tar.gz
+cd proton-informer-v0.1.5-linux-x86_64
 ```
 
 Keep `proton-informer` beside the `helpers/` directory. The controller discovers the packaged x86 and x86_64 Windows helpers from that layout.
