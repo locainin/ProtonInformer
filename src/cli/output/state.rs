@@ -1,5 +1,7 @@
 use crate::runs::{CleanupReport, RunStateReport};
 
+use crate::cli::style;
+
 /// Writes managed run-state directories and retained warnings
 pub(in crate::cli) fn print_runs(report: &RunStateReport) {
     println!("Run State");
@@ -13,7 +15,7 @@ pub(in crate::cli) fn print_runs(report: &RunStateReport) {
         );
     }
     for warning in &report.warnings {
-        eprintln!("Warning: {warning}");
+        eprintln!("{}: {warning}", style::warning_word("Warning"));
     }
 }
 
@@ -23,6 +25,6 @@ pub(in crate::cli) fn print_cleanup(report: &CleanupReport) {
     println!("  Root:    {}", report.root.display());
     println!("  Removed: {}", report.removed);
     for warning in &report.warnings {
-        eprintln!("Warning: {warning}");
+        eprintln!("{}: {warning}", style::warning_word("Warning"));
     }
 }

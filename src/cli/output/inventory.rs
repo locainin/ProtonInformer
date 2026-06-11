@@ -2,6 +2,8 @@ use crate::process::ProcessInfo;
 use crate::steam::SteamDiscoveryReport;
 use proton_informer_helper_protocol::ModuleQueryResult;
 
+use crate::cli::style;
+
 use super::common::display_optional_path;
 
 /// Writes one process with the evidence needed to diagnose planning
@@ -76,6 +78,11 @@ pub(in crate::cli) fn print_steam_games(report: SteamDiscoveryReport) {
         );
     }
     for warning in report.warnings {
-        eprintln!("Warning: {}: {}", warning.path.display(), warning.message);
+        eprintln!(
+            "{}: {}: {}",
+            style::warning_word("Warning"),
+            warning.path.display(),
+            warning.message
+        );
     }
 }

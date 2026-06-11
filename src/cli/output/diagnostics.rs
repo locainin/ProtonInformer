@@ -1,14 +1,33 @@
 use crate::doctor::DoctorReport;
 use crate::install::InstallVerification;
 
+use crate::cli::style;
+
 /// Writes readiness by capability rather than one broad Wine status
 pub(in crate::cli) fn print_doctor(report: DoctorReport) {
-    println!("Process planning: {:?}", report.process_planning);
-    println!("Steam discovery: {:?}", report.steam_discovery);
-    println!("Wine helper x86: {:?}", report.wine_helper_x86);
-    println!("Wine helper x86_64: {:?}", report.wine_helper_x86_64);
+    println!(
+        "Process planning: {}",
+        style::readiness(report.process_planning)
+    );
+    println!(
+        "Steam discovery: {}",
+        style::readiness(report.steam_discovery)
+    );
+    println!(
+        "Wine helper x86: {}",
+        style::readiness(report.wine_helper_x86)
+    );
+    println!(
+        "Wine helper x86_64: {}",
+        style::readiness(report.wine_helper_x86_64)
+    );
     for check in report.checks {
-        println!("  [{:?}] {}: {}", check.status, check.name, check.detail);
+        println!(
+            "  [{}] {}: {}",
+            style::status(check.status),
+            check.name,
+            check.detail
+        );
     }
 }
 
@@ -33,10 +52,17 @@ pub(in crate::cli) fn print_install_verifications(reports: &[InstallVerification
                 .map_or_else(|| "<not probed>".into(), |version| version.to_string())
         );
         println!("  SHA-256:          {}", report.helper_sha256);
-        println!("  Static verified:  yes");
-        println!("  Runtime verified: {}", report.runtime_verified);
+        println!("  Static verified:  {}", style::success_word("yes"));
+        println!(
+            "  Runtime verified: {}",
+            if report.runtime_verified {
+                style::success_word("yes")
+            } else {
+                style::warning_word("no")
+            }
+        );
         for warning in &report.warnings {
-            println!("  Warning:          {warning}");
+            println!("  {}:          {warning}", style::warning_word("Warning"));
         }
     }
 }

@@ -50,7 +50,11 @@ pub(in crate::cli) fn print_load_result(result: &LoadExecutionResult) {
         }
         println!(
             "  {}:      {}",
-            style::success_word("Verified"),
+            if load.module_verified {
+                style::success_word("Verified")
+            } else {
+                style::failure_word("Verified")
+            },
             load.module_verified
         );
         for warning in &load.dependency_warnings {

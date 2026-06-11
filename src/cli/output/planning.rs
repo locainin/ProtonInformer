@@ -1,6 +1,8 @@
 use crate::binary::BinaryInspection;
 use crate::decision::{LoadPlan, OverridePlan};
 
+use crate::cli::style;
+
 use super::inventory::print_process;
 
 /// Writes payload inspection details for terminal use
@@ -12,7 +14,7 @@ pub(in crate::cli) fn print_inspection(inspection: &BinaryInspection) {
     );
     println!("Size: {} bytes", inspection.size_bytes);
     if let Some(warning) = &inspection.extension_warning {
-        println!("Warning: {warning}");
+        println!("{}: {warning}", style::warning_word("Warning"));
     }
 }
 
@@ -33,8 +35,10 @@ pub(in crate::cli) fn print_load_plan(plan: &LoadPlan) {
     println!("  Reason:              {}", plan.note);
     for requirement in &plan.requirements {
         println!(
-            "  [{:?}] {}: {}",
-            requirement.status, requirement.name, requirement.detail
+            "  [{}] {}: {}",
+            style::status(requirement.status),
+            requirement.name,
+            requirement.detail
         );
     }
 }
@@ -54,5 +58,9 @@ pub(in crate::cli) fn print_override_plan(plan: &OverridePlan) {
     println!("  Launch option: {}", plan.launch_option);
     println!("  Placement:     {:?}", plan.placement);
     println!("  Files changed: {}", plan.files_modified);
-    println!("  Warning:       {}", plan.placement_note);
+    println!(
+        "  {}:       {}",
+        style::warning_word("Warning"),
+        plan.placement_note
+    );
 }
