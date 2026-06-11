@@ -1,7 +1,7 @@
 //! Installed helper integrity and runtime compatibility verification
 
 use std::fmt;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -68,16 +68,10 @@ pub fn verify_static(architecture: Architecture) -> Result<InstallVerification> 
             "{architecture} has no supported Windows helper"
         )));
     }
-    let helper_path = crate::helper::find_wine_helper(architecture).ok_or_else(|| {
-        Error::InvalidInput(format!(
-            "no permission-safe {architecture} Windows helper is installed"
-        ))
-    })?;
-    if !crate::helper::helper_permissions_are_trusted(&helper_path) {
-        return Err(Error::Rejected(format!(
-            "helper file or directory is group-writable or world-writable: {}",
-            helper_path.display()
-        )));
+    let helper_path = crate::helper::find_wine_helper(architecture)
+        .ok_or_else(|| missing_helper_error(architecture))?;
+    if let Some(error) = crate::helper::helper_trust_error(&helper_path) {
+        return Err(Error::Rejected(error));
     }
     let helper_sha256 = verify_sha256_manifest(&helper_path)?;
     let helper_source = helper_lookup_source(&helper_path);
@@ -92,6 +86,25 @@ pub fn verify_static(architecture: Architecture) -> Result<InstallVerification> 
         version: None,
         warnings,
     })
+}
+
+fn missing_helper_error(architecture: Architecture) -> Error {
+    let trust_error = crate::helper::wine_helper_candidates(architecture)
+        .into_iter()
+        // Ignore ordinary absent search-path entries so missing install stays clear
+        .filter(|candidate| match fs::symlink_metadata(candidate) {
+            Ok(_) => true,
+            Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+        })
+        .find_map(|candidate| crate::helper::helper_trust_error(&candidate));
+    trust_error.map_or_else(
+        || {
+            Error::InvalidInput(format!(
+                "no trusted {architecture} Windows helper is installed"
+            ))
+        },
+        Error::Rejected,
+    )
 }
 
 /// Verifies every packaged helper without requiring a running game
