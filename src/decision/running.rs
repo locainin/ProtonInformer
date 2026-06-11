@@ -6,7 +6,7 @@ use crate::binary::{BinaryFormat, BinaryInspection};
 use crate::doctor::CheckStatus;
 use crate::error::{Error, Result};
 use crate::helper;
-use crate::helper_runtime::{self, HelperRuntime};
+use crate::helper_runtime::{self, HelperRuntime, PayloadPathMode};
 use crate::process::{ClassificationConfidence, ProcessInfo, TargetKind};
 use crate::types::Architecture;
 use crate::wine;
@@ -23,6 +23,7 @@ pub fn plan_running(
     payload: BinaryInspection,
     target: ProcessInfo,
     architecture_override: Option<Architecture>,
+    payload_path_mode: PayloadPathMode,
 ) -> Result<LoadPlan> {
     if !payload.is_loadable_payload() {
         return Err(reject(
@@ -54,7 +55,13 @@ pub fn plan_running(
     }
 
     let backend = select_backend(&payload, &target)?;
-    let requirements = running_requirements(&payload, &target, target_architecture, backend);
+    let requirements = running_requirements(
+        &payload,
+        &target,
+        target_architecture,
+        backend,
+        payload_path_mode,
+    );
     let no_failed_requirements = requirements
         .iter()
         .all(|check| check.status != CheckStatus::Failed);
@@ -68,6 +75,7 @@ pub fn plan_running(
         payload,
         target,
         target_architecture,
+        payload_path_mode,
         backend,
         requirements,
         executable_now: all_requirements_passed && executor_implemented,
@@ -159,6 +167,7 @@ fn running_requirements(
     target: &ProcessInfo,
     target_architecture: Architecture,
     backend: Backend,
+    payload_path_mode: PayloadPathMode,
 ) -> Vec<RequirementCheck> {
     let mut checks = Vec::new();
 
@@ -171,7 +180,8 @@ fn running_requirements(
     checks.push(classification_requirement(target));
 
     if backend == Backend::WinePeHelper {
-        // Helper-backed loading needs Wine identity, helper identity, and path conversion
+        // Helper-backed loading needs Wine identity and a matching helper before
+        // any request files are staged or executed
         checks.push(requirement(
             "wine_prefix",
             target.wine_prefix.as_deref().is_some_and(Path::is_dir),
@@ -180,10 +190,25 @@ fn running_requirements(
         ));
         checks.push(helper_requirement(target_architecture));
         checks.push(runtime_requirement(target));
-        checks.push(payload_windows_path_requirement(payload, target));
+        match payload_path_mode {
+            // Staged-copy mode converts the private copy after request state exists
+            PayloadPathMode::StagedCopy => checks.push(staged_payload_requirement()),
+            PayloadPathMode::OriginalPath => {
+                // Original-path mode asks Wine to load the source path directly
+                checks.push(payload_windows_path_requirement(payload, target));
+            }
+        }
     }
 
     checks
+}
+
+fn staged_payload_requirement() -> RequirementCheck {
+    RequirementCheck {
+        name: "payload_path_mode".into(),
+        status: CheckStatus::Passed,
+        detail: "payload will be copied into private Wine-visible run state".into(),
+    }
 }
 
 fn classification_requirement(target: &ProcessInfo) -> RequirementCheck {

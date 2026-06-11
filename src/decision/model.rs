@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::binary::BinaryInspection;
 use crate::doctor::CheckStatus;
+use crate::helper_runtime::PayloadPathMode;
 use crate::process::ProcessInfo;
 use crate::types::Architecture;
 
@@ -28,6 +29,7 @@ pub struct LoadPlan {
     pub payload: BinaryInspection,
     pub target: ProcessInfo,
     pub target_architecture: Architecture,
+    pub payload_path_mode: PayloadPathMode,
     pub backend: Backend,
     pub requirements: Vec<RequirementCheck>,
     pub executable_now: bool,
