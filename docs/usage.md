@@ -4,6 +4,10 @@ ProtonInformer loads Windows PE DLLs into running Windows processes hosted by Wi
 
 Loading a DLL executes its code inside the selected process. Only use payloads from trusted sources and verify the selected target before passing `--yes`.
 
+> This documentation tracks the `main` branch and may describe behavior newer
+> than the latest published binary release. Check the release tag before
+> applying these instructions to an installed package.
+
 For a flag-by-flag command reference, see [CLI Reference](cli.md).
 
 ## Download
@@ -64,9 +68,38 @@ Use `--debug` with text output when the selected Proton runtime, Wine prefix, co
 ./proton-informer --debug inject --app-id 311210 --process BlackOps3.exe --payload ./mod.dll --dry-run
 ```
 
+For process discovery diagnostics:
+
+```bash
+./proton-informer --debug processes --wine-only
+```
+
+`--debug` also prints scan-level process rejections and optional procfs
+evidence failures that are suppressed from normal text output.
+
+## Target Identity
+
+ProtonInformer treats Steam and Proton identity values as authoritative
+evidence rather than fallback hints.
+
+When multiple identity sources are available, their values must agree.
+Conflicting Steam AppIDs or compatdata paths are rejected. If both
+`WINEPREFIX` and Steam compatdata identify the target, `WINEPREFIX` must
+identify the corresponding `compatdata/<appid>/pfx` prefix.
+
+Runtime identity paths such as `WINEPREFIX`, `STEAM_COMPAT_DATA_PATH`,
+`PROTONPATH`, and Steam compatibility-tool paths must be absolute Linux paths
+where required. The selected Wine prefix must also exist and be a directory.
+Explicit invalid identity is rejected rather than treated as missing and
+replaced by another source.
+
+After Linux target selection, the helper correlates the target to an exact
+Windows process identity. Failures inspecting unrelated Windows processes do
+not relax the selected target's identity requirements.
+
 ## Inspect And Plan
 
-Inspect a payload from its binary headers:
+Inspect a Windows PE DLL from its binary headers:
 
 ```bash
 ./proton-informer inspect ./mod.dll
@@ -86,6 +119,16 @@ Create the exact helper request without executing it:
 ./proton-informer inject --app-id 311210 --payload ./mod.dll --dry-run
 ./proton-informer load --pid 12345 --payload ./mod.dll --dry-run
 ```
+
+## Wine Path Mapping
+
+Host payload paths must resolve through one unambiguous Wine drive mapping.
+ProtonInformer rejects ambiguous or broken drive mappings rather than choosing
+one arbitrarily.
+
+Windows paths must use the supported absolute drive-rooted forms. Drive-
+relative, root-relative, UNC, and Win32-invalid filename components are
+rejected when they cannot be represented safely by the current loader path.
 
 ## Load A DLL
 
@@ -141,6 +184,13 @@ game-directory-relative lookup.
 
 `--yes` is required for a real load. `--dry-run` and `--yes` cannot be used together.
 
+A real load can also end with an indeterminate result. This means the helper
+cannot prove whether the target was modified, for example after a remote
+thread timeout or inconclusive post-load module verification.
+
+Do not automatically retry an indeterminate load. `LoadLibraryW` may already
+have executed inside the target process.
+
 ## Inspect Loaded Modules
 
 ```bash
@@ -151,6 +201,10 @@ game-directory-relative lookup.
 Module output shows the Windows PID, process identity, module basename, and loaded Windows path.
 
 Load output includes a module diff with before/after counts and newly observed module paths. If the DLL was already present, the result reports `Already loaded` and `added: none`.
+
+Load success is verified against the expected full Windows module path. A DLL
+with the same basename loaded from another directory does not count as the
+requested payload and is treated as a conflict.
 
 ## Manage Run State
 
@@ -207,6 +261,13 @@ Place `--json` before the command:
 ./proton-informer --json inject --pid 12345 --payload ./mod.dll --dry-run
 ```
 
-Structured load failures include stable error kinds. Windows error codes appear only for helper-side Windows API failures where a real code is available; standard `LoadLibraryW` NULL returns do not expose target-side `GetLastError`.
+Structured load failures include stable error kinds. `windows_error` is
+included only when the helper has an authoritative Windows API error code.
+The standard remote-thread loader cannot retrieve the target thread's
+`GetLastError`, and its 32-bit thread status is not a full pointer-sized
+`HMODULE`.
+
+Indeterminate load outcomes are distinct from confirmed rejections so
+automation can avoid unsafe retries.
 
 Text output uses terminal color for success, warning, and failure labels when color is supported. Set `NO_COLOR=1` to disable ANSI color.

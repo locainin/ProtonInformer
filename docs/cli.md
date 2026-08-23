@@ -44,7 +44,7 @@ With `--pid`, doctor also runs helper version and self-test probes inside the se
 
 ### `inspect`
 
-Inspect a payload from binary headers.
+Inspect a Windows PE DLL from its binary headers.
 
 ```bash
 ./proton-informer inspect ./payload.dll
@@ -72,6 +72,15 @@ Useful selection and execution flags:
 - `--timeout-ms <ms>` bounds helper execution from 1 to 300000 ms
 
 The normal staged-copy mode places the DLL under the private run directory. `--original-payload-path` is less isolated and should be used only when the DLL needs game-directory-relative dependency or path behavior.
+
+Target selection is fail-closed. Steam AppIDs, compatdata paths, `WINEPREFIX`,
+and Proton runtime paths must identify one consistent target, and supported
+runtime paths must be absolute Linux paths. Payload paths must resolve through
+one unambiguous Wine drive mapping and supported absolute drive-rooted Windows
+forms. An exact PID is bound to its Linux process incarnation and filesystem
+ownership before the helper is allowed to modify it. The helper then
+correlates that target to one exact Windows process; unreadable unrelated
+Windows rows do not weaken the selected target's identity requirements.
 
 Successful text output includes the selected Linux target, guest executable, Steam AppID, Proton runtime, Wine prefix, load result, and module diff.
 
@@ -146,14 +155,15 @@ List readable Linux, Wine, and Proton processes.
 ```
 
 `processes --json` keeps the established top-level array shape for script
-compatibility. The process row contract intentionally changes with the 0.1.6
-release: `host_architecture` was removed with the out-of-scope native-loader
-model, `environment_status` includes `not_inspected` for scan-only rows, and
-Each row also includes the Linux process `start_time_ticks` identity field, and
-`evidence_failures` can carry optional procfs-read diagnostics. JSON consumers
-must update for these row-level changes; the stable top-level array does not
-mean that individual fields are unchanged. Detailed scan rejections and
-optional evidence-read failures are emitted only by text mode with `--debug`.
+compatibility. The process row contract changes in 0.1.6:
+`host_architecture` is removed with the out-of-scope native-loader model,
+`environment_status` can be `not_inspected` for scan-only rows, each row
+includes the Linux `start_time_ticks` identity field, and `evidence_failures`
+is included when optional procfs evidence could not be read.
+
+JSON consumers must account for these row-level changes. Scan-level rejections
+are not added to the compatibility JSON array. In text mode, scan rejections
+and per-row evidence diagnostics are displayed with `--debug`.
 
 ### `runs`
 
