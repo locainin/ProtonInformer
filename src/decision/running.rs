@@ -29,13 +29,10 @@ pub fn plan_running(
         return Err(reject(
             &payload,
             &target,
-            "selected binary is not a loadable DLL or shared object",
+            "selected binary is not a Windows PE DLL",
         ));
     }
 
-    // Wine guest architecture must never inherit the Linux host loader's value
-    let target_architecture =
-        resolve_target_architecture(&payload, &target, architecture_override)?;
     if payload.architecture == Architecture::Unknown {
         return Err(reject(
             &payload,
@@ -43,6 +40,10 @@ pub fn plan_running(
             "payload architecture is unsupported or unknown",
         ));
     }
+    let backend = select_backend(&payload, &target)?;
+    // Wine guest architecture must never inherit a Linux host architecture
+    let target_architecture =
+        resolve_target_architecture(&payload, &target, architecture_override)?;
     if payload.architecture != target_architecture {
         return Err(reject(
             &payload,
@@ -53,8 +54,6 @@ pub fn plan_running(
             ),
         ));
     }
-
-    let backend = select_backend(&payload, &target)?;
     let requirements = running_requirements(
         &payload,
         &target,
@@ -90,22 +89,16 @@ pub fn plan_running(
 fn select_backend(payload: &BinaryInspection, target: &ProcessInfo) -> Result<Backend> {
     match (payload.format, target.target_kind) {
         (BinaryFormat::PeDll, TargetKind::WineProtonWindows) => Ok(Backend::WinePeHelper),
-        (BinaryFormat::ElfSharedObject, TargetKind::NativeLinux) => Err(reject(
-            payload,
-            target,
-            "native ELF loading is outside this tool's supported scope",
-        )),
         (BinaryFormat::PeDll, TargetKind::NativeLinux) => Err(reject(
             payload,
             target,
             "Windows DLLs cannot be loaded by the native Linux ELF loader",
         )),
-        (BinaryFormat::ElfSharedObject, TargetKind::WineProtonWindows) => Err(reject(
+        (BinaryFormat::PeExecutable, _) => Err(reject(
             payload,
             target,
-            "ELF shared objects cannot be loaded by the Wine PE loader",
+            "PE executables are not injectable payload DLLs",
         )),
-        _ => unreachable!("non-loadable payloads were rejected above"),
     }
 }
 
@@ -146,12 +139,9 @@ fn resolve_target_architecture(
         ));
     }
 
-    let architecture = match target.target_kind {
-        TargetKind::NativeLinux => architecture_override.unwrap_or(target.host_architecture),
-        TargetKind::WineProtonWindows => architecture_override
-            .or(target.guest_architecture)
-            .unwrap_or(Architecture::Unknown),
-    };
+    let architecture = architecture_override
+        .or(target.guest_architecture)
+        .unwrap_or(Architecture::Unknown);
     if architecture == Architecture::Unknown {
         return Err(reject(
             payload,
@@ -292,16 +282,16 @@ fn payload_windows_path_requirement(
         .as_deref()
         .map(|prefix| wine::unix_path_to_windows(prefix, &payload.path));
 
+    let (status, detail) = match conversion {
+        Some(Ok(path)) => (CheckStatus::Passed, path),
+        Some(Err(error)) => (CheckStatus::Failed, error.to_string()),
+        None => (CheckStatus::Failed, "target Wine prefix is unknown".into()),
+    };
+
     RequirementCheck {
         name: "payload_windows_path".into(),
-        status: if conversion.as_ref().is_some_and(Result::is_ok) {
-            CheckStatus::Passed
-        } else {
-            CheckStatus::Failed
-        },
-        detail: conversion
-            .and_then(Result::ok)
-            .unwrap_or_else(|| "payload is outside configured Wine drives".into()),
+        status,
+        detail,
     }
 }
 

@@ -188,7 +188,7 @@ pub(super) enum Command {
 
     /// Validate a payload and select a backend for a running process
     Plan {
-        /// Payload DLL or shared object
+        /// Windows PE payload DLL
         #[arg(long)]
         payload: PathBuf,
 
