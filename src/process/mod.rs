@@ -6,6 +6,7 @@
 mod evidence;
 mod model;
 mod procfs;
+mod proton;
 
 pub use evidence::resolve_guest_executable;
 pub use model::{

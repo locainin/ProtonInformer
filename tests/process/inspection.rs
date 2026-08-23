@@ -445,7 +445,7 @@ fn wait_for_process_entries(pid: u32, field: &str, expected: &[Vec<u8>]) {
 
             if expected
                 .iter()
-                .all(|wanted| entries.iter().any(|entry| *entry == wanted.as_slice()))
+                .all(|wanted| entries.contains(&wanted.as_slice()))
             {
                 return;
             }
