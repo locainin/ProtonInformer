@@ -128,16 +128,45 @@ pub fn create_request_directory(prefix: &Path, request_id: &str) -> Result<PathB
         .map_err(|error| Error::InvalidInput(format!("invalid request UUID: {error}")))?;
     let primary_root = state_directory();
     let primary = create_owner_directory(&primary_root, request_id)?;
-    if wine::unix_path_to_windows(prefix, &primary).is_ok() {
-        return Ok(primary);
+    match wine::unix_path_to_windows(prefix, &primary) {
+        Ok(_) => return Ok(primary),
+        Err(Error::NoDriveMappingForPath { .. }) => {
+            // Only an unmapped state root is eligible for the C: fallback
+            let _ = fs::remove_dir(&primary);
+        }
+        Err(error) => {
+            let _ = fs::remove_dir(&primary);
+            return Err(error);
+        }
     }
-    let _ = fs::remove_dir(&primary);
 
     // A configured C: mapping is a prefix-local fallback when no drive exposes
     // the Linux state directory
-    let c_root = wine::drive_mappings(prefix)?
-        .into_iter()
-        .find_map(|(drive, root)| (drive == 'c').then_some(root))
+    let mapping_report = wine::inspect_drive_mappings(prefix)?;
+    if let Some(ambiguity) = mapping_report
+        .ambiguities
+        .iter()
+        .find(|ambiguity| ambiguity.drive == 'c')
+    {
+        return Err(Error::AmbiguousDriveMapping {
+            drive: ambiguity.drive,
+            roots: ambiguity.roots.clone(),
+        });
+    }
+    if let Some(failure) = mapping_report
+        .failures
+        .iter()
+        .find(|failure| failure.drive == 'c')
+    {
+        return Err(Error::DriveMappingInspectionIncomplete {
+            path: prefix.join("dosdevices").display().to_string(),
+            details: failure.to_string(),
+        });
+    }
+    let c_root = mapping_report
+        .mappings
+        .iter()
+        .find_map(|(drive, root)| (*drive == 'c').then_some(root.clone()))
         .ok_or_else(|| {
             Error::InvalidInput(
                 "neither the state directory nor a configured C: drive is available to Wine".into(),
