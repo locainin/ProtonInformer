@@ -37,7 +37,7 @@ struct CompiledFilters {
 
 impl CompiledFilters {
     fn matches(&self, module: &WindowsModuleInfo) -> bool {
-        let module_name = module.module_name.to_ascii_lowercase();
+        let module_name = module.module_name.to_lowercase();
 
         if let Some(name) = &self.name
             && !module_name.contains(name)
@@ -46,7 +46,7 @@ impl CompiledFilters {
         }
 
         if let Some(contains) = &self.contains {
-            let module_path = module.windows_path.to_ascii_lowercase();
+            let module_path = module.windows_path.to_lowercase();
             if !module_name.contains(contains) && !module_path.contains(contains) {
                 return false;
             }
@@ -59,14 +59,8 @@ impl CompiledFilters {
 impl From<&ModuleFilters> for CompiledFilters {
     fn from(filters: &ModuleFilters) -> Self {
         Self {
-            name: filters
-                .name
-                .as_ref()
-                .map(|value| value.to_ascii_lowercase()),
-            contains: filters
-                .contains
-                .as_ref()
-                .map(|value| value.to_ascii_lowercase()),
+            name: filters.name.as_ref().map(|value| value.to_lowercase()),
+            contains: filters.contains.as_ref().map(|value| value.to_lowercase()),
         }
     }
 }

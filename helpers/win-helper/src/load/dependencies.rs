@@ -5,6 +5,7 @@ use std::path::Path;
 use proton_informer_helper_protocol::{WindowsModuleInfo, WindowsProcessInfo};
 
 use crate::error::HelperFailure;
+use crate::windows_path::windows_string_equal;
 
 /// Reports imported DLLs that are not visible through common loader paths
 pub(super) fn dependency_warnings(
@@ -28,7 +29,7 @@ pub(super) fn dependency_warnings(
         }
         let loaded = modules
             .iter()
-            .any(|module| module.module_name.eq_ignore_ascii_case(&import));
+            .any(|module| windows_string_equal(&module.module_name, &import));
         let adjacent = payload_directory.is_some_and(|directory| directory.join(&import).is_file())
             || process_directory.is_some_and(|directory| directory.join(&import).is_file());
         if !loaded && !adjacent && !platform_dependency_visible(&import)? {

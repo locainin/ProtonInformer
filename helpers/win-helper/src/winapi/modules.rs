@@ -12,6 +12,7 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
 
 use super::common::{OwnedHandle, last_error, wide_string};
 use crate::error::HelperFailure;
+use crate::windows_path::windows_path_sort_key;
 
 /// Module address range in one process
 pub(super) struct ModuleAddress {
@@ -43,28 +44,34 @@ pub fn modules(windows_pid: u32) -> Result<Vec<WindowsModuleInfo>, HelperFailure
 
     let mut modules = Vec::new();
     loop {
+        let module_name = match wide_string(&entry.szModule) {
+            Ok(name) => name,
+            Err(_) => {
+                if !advance_module_snapshot(&snapshot, &mut entry)? {
+                    break;
+                }
+                continue;
+            }
+        };
+        let windows_path = match wide_string(&entry.szExePath) {
+            Ok(path) => path,
+            Err(_) => {
+                if !advance_module_snapshot(&snapshot, &mut entry)? {
+                    break;
+                }
+                continue;
+            }
+        };
         modules.push(WindowsModuleInfo {
-            module_name: wide_string(&entry.szModule),
-            windows_path: wide_string(&entry.szExePath),
+            module_name,
+            windows_path,
         });
 
-        // SAFETY: snapshot and entry remain valid for the enumeration lifetime
-        if unsafe { Module32NextW(snapshot.raw(), &raw mut entry) } == 0 {
-            let code = unsafe { GetLastError() };
-            if code == ERROR_NO_MORE_FILES {
-                break;
-            }
-            return Err(HelperFailure::Windows {
-                code,
-                operation: "Module32NextW",
-            });
+        if !advance_module_snapshot(&snapshot, &mut entry)? {
+            break;
         }
     }
-    modules.sort_by(|left, right| {
-        left.windows_path
-            .to_ascii_lowercase()
-            .cmp(&right.windows_path.to_ascii_lowercase())
-    });
+    modules.sort_by_cached_key(|module| windows_path_sort_key(&module.windows_path));
     Ok(modules)
 }
 
@@ -119,23 +126,43 @@ pub(super) fn module_addresses(windows_pid: u32) -> Result<Vec<ModuleAddress>, H
     }
     let mut modules = Vec::new();
     loop {
+        let name = match wide_string(&entry.szModule) {
+            Ok(name) => name,
+            Err(_) => {
+                if !advance_module_snapshot(&snapshot, &mut entry)? {
+                    break;
+                }
+                continue;
+            }
+        };
         modules.push(ModuleAddress {
             base: entry.modBaseAddr as usize,
-            name: wide_string(&entry.szModule),
+            name,
             size: usize::try_from(entry.modBaseSize)
                 .map_err(|_| HelperFailure::LoadFailed("module size does not fit usize".into()))?,
         });
-        // SAFETY: snapshot and entry remain valid for the enumeration lifetime
-        if unsafe { Module32NextW(snapshot.raw(), &raw mut entry) } == 0 {
-            let code = unsafe { GetLastError() };
-            if code == ERROR_NO_MORE_FILES {
-                break;
-            }
-            return Err(HelperFailure::Windows {
-                code,
-                operation: "Module32NextW remote base",
-            });
+        if !advance_module_snapshot(&snapshot, &mut entry)? {
+            break;
         }
     }
     Ok(modules)
+}
+
+/// Advances a module snapshot without hiding enumeration failures
+fn advance_module_snapshot(
+    snapshot: &OwnedHandle,
+    entry: &mut MODULEENTRY32W,
+) -> Result<bool, HelperFailure> {
+    // SAFETY: snapshot and entry remain valid for the enumeration lifetime
+    if unsafe { Module32NextW(snapshot.raw(), &raw mut *entry) } == 0 {
+        let code = unsafe { GetLastError() };
+        if code == ERROR_NO_MORE_FILES {
+            return Ok(false);
+        }
+        return Err(HelperFailure::Windows {
+            code,
+            operation: "Module32NextW",
+        });
+    }
+    Ok(true)
 }

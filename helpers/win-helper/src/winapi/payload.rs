@@ -92,11 +92,12 @@ fn final_path_name(handle: HANDLE) -> Result<String, HelperFailure> {
     }
     let written = usize::try_from(written)
         .map_err(|_| HelperFailure::InvalidWindowsPath("canonical path is too long".into()))?;
-    let path = String::from_utf16_lossy(
+    let path = String::from_utf16(
         buffer
             .get(..written)
             .ok_or_else(|| HelperFailure::InvalidWindowsPath("canonical path truncated".into()))?,
-    );
+    )
+    .map_err(|_| HelperFailure::InvalidWindowsPath("canonical path is not valid Unicode".into()))?;
     Ok(strip_extended_prefix(&path))
 }
 
