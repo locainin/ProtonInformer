@@ -173,7 +173,11 @@ fn a_pe_header_ending_at_file_end_reaches_optional_header_validation() {
     let pe_offset = 0x80_usize;
     let mut bytes = vec![0_u8; pe_offset + 24];
     bytes[0..2].copy_from_slice(b"MZ");
-    bytes[0x3c..0x40].copy_from_slice(&(pe_offset as u32).to_le_bytes());
+    bytes[0x3c..0x40].copy_from_slice(
+        &u32::try_from(pe_offset)
+            .expect("fixture PE offset fits in u32")
+            .to_le_bytes(),
+    );
     bytes[pe_offset..pe_offset + 4].copy_from_slice(b"PE\0\0");
     bytes[pe_offset + 4..pe_offset + 6].copy_from_slice(&0x8664_u16.to_le_bytes());
     bytes[pe_offset + 6..pe_offset + 8].copy_from_slice(&1_u16.to_le_bytes());
@@ -284,12 +288,13 @@ fn write_minimal_pe_arch_at(
     // Keep one complete header for every declared section
     let names = [b".text\0\0\0", b".rdata\0\0", b".data\0\0\0"];
     for (index, name) in names.iter().enumerate() {
+        let section_index = u32::try_from(index).expect("fixture section index fits in u32");
         let mut section_header = [0_u8; 40];
         section_header[0..8].copy_from_slice(*name);
         section_header[8..12].copy_from_slice(&0x1000_u32.to_le_bytes());
-        section_header[12..16].copy_from_slice(&(0x1000_u32 * (index as u32 + 1)).to_le_bytes());
+        section_header[12..16].copy_from_slice(&(0x1000_u32 * (section_index + 1)).to_le_bytes());
         section_header[16..20].copy_from_slice(&0x200_u32.to_le_bytes());
-        section_header[20..24].copy_from_slice(&(0x200_u32 * (index as u32 + 1)).to_le_bytes());
+        section_header[20..24].copy_from_slice(&(0x200_u32 * (section_index + 1)).to_le_bytes());
         section_header[36..40].copy_from_slice(&0x6000_0020_u32.to_le_bytes());
         file.write_all(&section_header)
             .expect("write section header");

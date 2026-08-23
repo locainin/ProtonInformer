@@ -232,7 +232,8 @@ mod tests {
             windows_path: r"C:\payload.dll".into(),
         };
 
-        let delta = modules_added(&[before.clone()], &[before, added.clone()]);
+        let after = [before.clone(), added.clone()];
+        let delta = modules_added(std::slice::from_ref(&before), &after);
 
         assert_eq!(delta, vec![added]);
     }

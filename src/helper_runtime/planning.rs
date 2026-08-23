@@ -427,7 +427,7 @@ mod tests {
         wrong_schema.schema_version += 1;
         assert!(validate_query_process_response(&wrong_schema, "request-1").is_err());
 
-        let mut wrong_request = valid.clone();
+        let mut wrong_request = valid;
         wrong_request.request_id = "request-2".into();
         assert!(validate_query_process_response(&wrong_request, "request-1").is_err());
 

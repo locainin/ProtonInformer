@@ -239,14 +239,12 @@ fn literal_backslashes_in_unix_argv_do_not_create_compatdata_identity() {
         .env("WINEPREFIX", prefix.as_os_str())
         .spawn()
         .expect("spawn literal-backslash fixture");
-    let inspected = process::inspect(child.id());
+    let inspected = inspect_until_wine_target(child.id());
     child.kill().expect("stop literal-backslash fixture");
     child.wait().expect("reap literal-backslash fixture");
-    let process = inspected.expect("inspect literal-backslash fixture");
 
-    assert_eq!(process.target_kind, TargetKind::WineProtonWindows);
-    assert_eq!(process.compatdata_dir, None);
-    assert_eq!(process.steam_app_id, None);
+    assert_eq!(inspected.compatdata_dir, None);
+    assert_eq!(inspected.steam_app_id, None);
 }
 
 #[test]
@@ -290,7 +288,7 @@ fn multiple_command_compatdata_paths_are_not_first_match_wins() {
         .env("WINEPREFIX", directory.path().join("pfx").as_os_str())
         .spawn()
         .expect("spawn ambiguous Steam identity fixture");
-    let error = process::inspect(child.id()).expect_err("ambiguous identity must fail closed");
+    let error = inspect_until_steam_identity_conflict(child.id());
     child.kill().expect("stop ambiguous Steam identity fixture");
     child.wait().expect("reap ambiguous Steam identity fixture");
 
@@ -414,6 +412,26 @@ fn inspect_until_guest_candidate(pid: u32) -> proton_informer::process::ProcessI
     }
 }
 
+fn inspect_until_wine_target(pid: u32) -> proton_informer::process::ProcessInfo {
+    let deadline = Instant::now() + Duration::from_secs(2);
+
+    loop {
+        match process::inspect(pid) {
+            Ok(inspected) if inspected.target_kind == TargetKind::WineProtonWindows => {
+                return inspected;
+            }
+            Ok(_) | Err(proton_informer::Error::ProcessUnavailable(_)) => {
+                assert!(
+                    Instant::now() < deadline,
+                    "Wine target evidence did not become visible"
+                );
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => panic!("Wine target process inspection failed: {error}"),
+        }
+    }
+}
+
 fn inspect_until_steam_identity_conflict(pid: u32) -> proton_informer::Error {
     let deadline = Instant::now() + Duration::from_secs(2);
 
@@ -448,14 +466,15 @@ fn write_minimal_pe_executable(path: &Path) {
     // Keep one complete header for every declared section
     let names = [b".text\0\0\0", b".rdata\0\0", b".data\0\0\0"];
     for (index, name) in names.iter().enumerate() {
+        let section_index = u32::try_from(index).expect("fixture section index fits in u32");
         let section = section_table + index * 40;
         bytes[section..section + 8].copy_from_slice(*name);
         bytes[section + 8..section + 12].copy_from_slice(&0x1000_u32.to_le_bytes());
         bytes[section + 12..section + 16]
-            .copy_from_slice(&(0x1000_u32 * (index as u32 + 1)).to_le_bytes());
+            .copy_from_slice(&(0x1000_u32 * (section_index + 1)).to_le_bytes());
         bytes[section + 16..section + 20].copy_from_slice(&0x200_u32.to_le_bytes());
         bytes[section + 20..section + 24]
-            .copy_from_slice(&(0x200_u32 * (index as u32 + 1)).to_le_bytes());
+            .copy_from_slice(&(0x200_u32 * (section_index + 1)).to_le_bytes());
         bytes[section + 36..section + 40].copy_from_slice(&0x6000_0020_u32.to_le_bytes());
     }
 

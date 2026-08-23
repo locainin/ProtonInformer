@@ -239,14 +239,15 @@ fn write_minimal_pe_dll(path: &std::path::Path) {
     // Keep one complete header for every declared section
     let names = [b".text\0\0\0", b".rdata\0\0", b".data\0\0\0"];
     for (index, name) in names.iter().enumerate() {
+        let section_index = u32::try_from(index).expect("fixture section index fits in u32");
         let section = section_table + index * 40;
         bytes[section..section + 8].copy_from_slice(*name);
         bytes[section + 8..section + 12].copy_from_slice(&0x1000_u32.to_le_bytes());
         bytes[section + 12..section + 16]
-            .copy_from_slice(&(0x1000_u32 * (index as u32 + 1)).to_le_bytes());
+            .copy_from_slice(&(0x1000_u32 * (section_index + 1)).to_le_bytes());
         bytes[section + 16..section + 20].copy_from_slice(&0x200_u32.to_le_bytes());
         bytes[section + 20..section + 24]
-            .copy_from_slice(&(0x200_u32 * (index as u32 + 1)).to_le_bytes());
+            .copy_from_slice(&(0x200_u32 * (section_index + 1)).to_le_bytes());
         bytes[section + 36..section + 40].copy_from_slice(&0x6000_0020_u32.to_le_bytes());
     }
 

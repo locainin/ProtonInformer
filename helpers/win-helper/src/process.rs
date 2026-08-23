@@ -155,6 +155,39 @@ fn identity_matches(
         .is_some_and(|(actual, expected)| windows_path_equal(actual, expected))
 }
 
+/// Calls the platform implementation
+#[cfg(windows)]
+fn platform_processes()
+-> Result<(Vec<WindowsProcessInfo>, Vec<ProcessQueryRejection>), HelperFailure> {
+    crate::winapi::processes()
+}
+
+/// Calls the exact-PID platform implementation
+#[cfg(windows)]
+fn platform_process(windows_pid: u32) -> Result<WindowsProcessInfo, HelperFailure> {
+    crate::winapi::process(windows_pid)
+}
+
+/// Refuses to emulate Windows process behavior on a non-Windows build
+#[cfg(not(windows))]
+fn platform_processes()
+-> Result<(Vec<WindowsProcessInfo>, Vec<ProcessQueryRejection>), HelperFailure> {
+    let _ = ProtocolArchitecture::Unknown;
+    Err(HelperFailure::UnsupportedOperation(
+        "process enumeration requires a Windows helper build".into(),
+    ))
+}
+
+/// Refuses to emulate exact Windows process identity on a non-Windows build
+#[cfg(not(windows))]
+fn platform_process(windows_pid: u32) -> Result<WindowsProcessInfo, HelperFailure> {
+    let _ = windows_pid;
+    let _ = ProtocolArchitecture::Unknown;
+    Err(HelperFailure::UnsupportedOperation(
+        "process lookup requires a Windows helper build".into(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::identity_matches;
@@ -219,37 +252,4 @@ mod tests {
             crate::error::HelperFailure::TargetNotFound(_)
         ));
     }
-}
-
-/// Calls the platform implementation
-#[cfg(windows)]
-fn platform_processes()
--> Result<(Vec<WindowsProcessInfo>, Vec<ProcessQueryRejection>), HelperFailure> {
-    crate::winapi::processes()
-}
-
-/// Calls the exact-PID platform implementation
-#[cfg(windows)]
-fn platform_process(windows_pid: u32) -> Result<WindowsProcessInfo, HelperFailure> {
-    crate::winapi::process(windows_pid)
-}
-
-/// Refuses to emulate Windows process behavior on a non-Windows build
-#[cfg(not(windows))]
-fn platform_processes()
--> Result<(Vec<WindowsProcessInfo>, Vec<ProcessQueryRejection>), HelperFailure> {
-    let _ = ProtocolArchitecture::Unknown;
-    Err(HelperFailure::UnsupportedOperation(
-        "process enumeration requires a Windows helper build".into(),
-    ))
-}
-
-/// Refuses to emulate exact Windows process identity on a non-Windows build
-#[cfg(not(windows))]
-fn platform_process(windows_pid: u32) -> Result<WindowsProcessInfo, HelperFailure> {
-    let _ = windows_pid;
-    let _ = ProtocolArchitecture::Unknown;
-    Err(HelperFailure::UnsupportedOperation(
-        "process lookup requires a Windows helper build".into(),
-    ))
 }
