@@ -4,6 +4,10 @@
 mod debug;
 #[path = "cli/help.rs"]
 mod help;
+#[path = "cli/inventory.rs"]
+mod inventory;
+#[path = "cli/steam.rs"]
+mod steam;
 
 use std::process::Command;
 

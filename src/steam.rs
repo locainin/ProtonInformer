@@ -41,9 +41,9 @@ pub struct SteamDiscoveryReport {
 #[must_use]
 pub fn discover_games() -> SteamDiscoveryReport {
     let mut games = Vec::new();
-    let mut warnings = Vec::new();
+    let (libraries, mut warnings) = discover_libraries_with_warnings();
 
-    for library in discover_libraries() {
+    for library in libraries {
         let steamapps = library.join("steamapps");
         let entries = match fs::read_dir(&steamapps) {
             Ok(entries) => entries,
@@ -57,16 +57,30 @@ pub fn discover_games() -> SteamDiscoveryReport {
         };
 
         // App manifests are the source of truth for names and install folders
-        for manifest in entries.flatten().map(|entry| entry.path()).filter(|path| {
-            path.file_name()
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(source) => {
+                    warnings.push(DiscoveryWarning {
+                        path: steamapps.clone(),
+                        message: source.to_string(),
+                    });
+                    continue;
+                }
+            };
+            let manifest = entry.path();
+            let is_manifest = manifest
+                .file_name()
                 .and_then(|name| name.to_str())
                 .is_some_and(|name| {
                     name.starts_with("appmanifest_")
                         && Path::new(name)
                             .extension()
                             .is_some_and(|extension| extension.eq_ignore_ascii_case("acf"))
-                })
-        }) {
+                });
+            if !is_manifest {
+                continue;
+            }
             match parse_manifest(&manifest, &library) {
                 Ok(game) => games.push(game),
                 Err(error) => warnings.push(DiscoveryWarning {
@@ -85,16 +99,41 @@ pub fn discover_games() -> SteamDiscoveryReport {
 /// Returns candidate Steam libraries from native, Flatpak, XDG, and exported roots
 #[must_use]
 pub fn discover_libraries() -> Vec<PathBuf> {
+    discover_libraries_with_warnings().0
+}
+
+/// Discovers libraries while retaining filesystem failures for game reports
+fn discover_libraries_with_warnings() -> (Vec<PathBuf>, Vec<DiscoveryWarning>) {
     let mut libraries = BTreeSet::new();
+    let mut warnings = Vec::new();
 
     for root in steam_roots() {
-        if root.is_dir() {
-            libraries.insert(root.clone());
+        match fs::metadata(&root) {
+            Ok(metadata) if metadata.is_dir() => {
+                libraries.insert(root.clone());
+            }
+            Ok(_) => warnings.push(DiscoveryWarning {
+                path: root.clone(),
+                message: "Steam root is not a directory".into(),
+            }),
+            Err(source) if source.kind() == std::io::ErrorKind::NotFound => {}
+            Err(source) => warnings.push(DiscoveryWarning {
+                path: root.clone(),
+                message: source.to_string(),
+            }),
         }
 
         let library_file = root.join("config/libraryfolders.vdf");
-        let Ok(contents) = fs::read_to_string(&library_file) else {
-            continue;
+        let contents = match fs::read_to_string(&library_file) {
+            Ok(contents) => contents,
+            Err(source) if source.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(source) => {
+                warnings.push(DiscoveryWarning {
+                    path: library_file,
+                    message: source.to_string(),
+                });
+                continue;
+            }
         };
 
         for line in contents.lines() {
@@ -104,7 +143,7 @@ pub fn discover_libraries() -> Vec<PathBuf> {
         }
     }
 
-    libraries.into_iter().collect()
+    (libraries.into_iter().collect(), warnings)
 }
 
 /// Finds one game while preserving warnings for caller diagnostics

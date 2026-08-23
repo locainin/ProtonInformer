@@ -26,17 +26,25 @@ pub(super) fn run_modules(
 }
 
 /// Lists readable process evidence
-pub(super) fn run_processes(wine_only: bool, json: bool) -> Result<()> {
-    let mut processes = process::list();
+pub(super) fn run_processes(wine_only: bool, json: bool, debug: bool) -> Result<()> {
+    let mut report = process::list_report();
+    let mut processes = std::mem::take(&mut report.processes);
     if wine_only {
         processes.retain(|process| process.target_kind == TargetKind::WineProtonWindows);
     }
     if json {
+        // Keep the established JSON contract as a top-level process array
         output::error::print_json(&processes)
     } else {
         for process in processes {
             output::inventory::print_process(&process);
+            if debug {
+                output::inventory::print_process_evidence_failures(&process);
+            }
             println!();
+        }
+        if debug {
+            output::inventory::print_process_rejections(&report.rejections);
         }
         Ok(())
     }

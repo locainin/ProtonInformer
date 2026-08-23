@@ -104,7 +104,7 @@ pub(super) fn run(cli: Cli) -> Result<()> {
             payload_path_mode(original_payload_path),
             cli.json,
         )?,
-        Command::Processes { wine_only } => run_processes(wine_only, cli.json)?,
+        Command::Processes { wine_only } => run_processes(wine_only, cli.json, cli.debug)?,
         Command::Runs { prefix } => run_runs(prefix.as_deref(), cli.json)?,
         Command::SteamGames => run_steam_games(cli.json)?,
         Command::VerifyInstall { arch, pid } => run_verify_install(arch, pid, cli.json)?,
