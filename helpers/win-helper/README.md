@@ -34,7 +34,8 @@ Valid requests dispatch to one of three operations:
 
 - `query_processes`: enumerate visible Windows processes and return process
   name, Windows PID, architecture, creation time, and executable path when
-  readable
+  readable. Per-process identity read failures remain in the result as
+  structured rejections
 - `query_modules`: resolve one exact target and return its loaded module list
 - `load_library`: validate, load, and verify one DLL in one resolved target
 
@@ -55,8 +56,8 @@ The load path is deliberately narrow:
    architecture.
 6. Resolve the target again and enumerate its modules before loading.
 7. Treat an already loaded exact module path as an idempotent success.
-8. Reject basename conflicts unless the already loaded module matches the
-   requested payload identity.
+8. Reject a same-basename module loaded from a different full path. File
+   contents never substitute for the requested module path.
 9. Run a standard remote `LoadLibraryW` thread in the target process.
 10. Resolve the target identity again, enumerate modules again, and report
     success only when the canonical payload path is present.
@@ -71,14 +72,24 @@ The current loader uses the standard
 mutation small, but it also means the helper cannot safely read the target
 thread's `GetLastError`.
 
-When `LoadLibraryW` returns NULL, the helper reports:
+On x86, when the completed remote thread reports a zero 32-bit exit status, the
+helper reports:
 
 ```text
-LoadLibraryW returned NULL; target-side GetLastError is unavailable in standard loader mode.
+LoadLibraryW returned a zero 32-bit thread exit status; target-side GetLastError is unavailable in standard loader mode.
 ```
 
-The protocol omits `windows_error` for that case. A Windows error value of zero
-is treated as unavailable, not as a real loader error.
+The protocol omits `windows_error` for that case. The value is a thread exit
+status, not a full pointer-sized `HMODULE`, and a zero value does not provide a
+target-side `GetLastError`.
+
+On x64, a zero low 32-bit status cannot prove that the pointer-sized
+`LoadLibraryW` result was null. If the exact module is not observed, the helper
+therefore reports an indeterminate outcome for every x64 low-bit value.
+
+If the thread wait or the final module snapshot cannot prove whether the
+remote load finished, the helper returns an indeterminate outcome. The
+controller must not retry that request automatically.
 
 Dependency preflight is advisory only. Import parsing can produce warnings on
 successful loads, and parser failures become skipped-preflight warnings in

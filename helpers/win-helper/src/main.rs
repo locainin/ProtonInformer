@@ -7,5 +7,5 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    proton_informer_win_helper::launch()
+    proton_informer_win_helper::main_entry()
 }
