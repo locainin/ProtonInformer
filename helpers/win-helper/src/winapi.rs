@@ -14,4 +14,4 @@ pub use dependencies::dependency_visible;
 pub use loader::load_library;
 pub use modules::modules;
 pub use payload::{LockedPayload, lock_payload};
-pub use processes::{current_process_id, processes};
+pub use processes::{current_process_id, process, processes};

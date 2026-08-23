@@ -2,8 +2,8 @@
 
 use proton_informer_helper_protocol::{
     HelperError, HelperOperation, HelperOptions, HelperPayload, HelperRequest, HelperResponse,
-    HelperResult, HelperTarget, LoadLibraryResult, MAX_PAYLOAD_SIZE_BYTES, ProtocolArchitecture,
-    SCHEMA_VERSION, TargetSelector, WindowsModuleInfo,
+    HelperResult, HelperTarget, LoadLibraryResult, MAX_PAYLOAD_SIZE_BYTES, ProcessQueryRejection,
+    ProcessQueryResult, ProtocolArchitecture, SCHEMA_VERSION, TargetSelector, WindowsModuleInfo,
 };
 
 fn load_request() -> HelperRequest {
@@ -95,6 +95,28 @@ fn query_processes_request_json_contract_is_stable() {
   "target": null
 }"#
     );
+}
+
+#[test]
+fn process_query_result_preserves_partial_read_diagnostics() {
+    let result = ProcessQueryResult {
+        processes: Vec::new(),
+        rejections: vec![ProcessQueryRejection {
+            kind: "windows_api".into(),
+            message: "OpenProcess query failed".into(),
+            windows_error: Some(5),
+            windows_pid: 1234,
+            process_name: "system.exe".into(),
+        }],
+    };
+    let json = serde_json::to_string(&result).expect("serialize process result");
+    let decoded: ProcessQueryResult =
+        serde_json::from_str(&json).expect("deserialize process result");
+
+    assert_eq!(decoded, result);
+    assert!(json.contains("OpenProcess query failed"));
+    assert!(json.contains("1234"));
+    assert!(json.contains("system.exe"));
 }
 
 #[test]

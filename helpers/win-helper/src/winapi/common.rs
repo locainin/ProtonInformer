@@ -42,10 +42,12 @@ pub(super) fn null_terminated_wide(value: &str) -> Result<Vec<u16>, HelperFailur
     Ok(value.encode_utf16().chain(std::iter::once(0)).collect())
 }
 
-/// Converts a fixed NUL-terminated UTF-16 array into owned text
-pub(super) fn wide_string<const N: usize>(value: &[u16; N]) -> String {
+/// Converts a fixed NUL-terminated UTF-16 array into strict identity text
+pub(super) fn wide_string<const N: usize>(value: &[u16; N]) -> Result<String, HelperFailure> {
     let length = value.iter().position(|unit| *unit == 0).unwrap_or(N);
-    String::from_utf16_lossy(&value[..length])
+    String::from_utf16(&value[..length]).map_err(|_| {
+        HelperFailure::Validation("Windows UTF-16 identity text is not valid Unicode".into())
+    })
 }
 
 /// Captures the current Windows error immediately

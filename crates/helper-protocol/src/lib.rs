@@ -3,6 +3,10 @@
 #![forbid(unsafe_code)]
 #![deny(warnings)]
 #![warn(clippy::pedantic, clippy::nursery)]
+#![allow(
+    clippy::doc_paragraphs_missing_punctuation,
+    reason = "existing protocol documentation uses concise comment-style sentences"
+)]
 
 mod architecture;
 mod constants;
@@ -22,8 +26,8 @@ pub use payload::HelperPayload;
 pub use request::{HelperOptions, HelperRequest};
 pub use response::{HelperError, HelperResponse};
 pub use result::{
-    HelperResult, LoadLibraryResult, ModuleQueryResult, ProcessQueryResult, SelfTestCheck,
-    SelfTestResult, WindowsModuleInfo, WindowsProcessInfo,
+    HelperResult, LoadLibraryResult, ModuleQueryResult, ProcessQueryRejection, ProcessQueryResult,
+    SelfTestCheck, SelfTestResult, WindowsModuleInfo, WindowsProcessInfo,
 };
 pub use target::{HelperTarget, TargetSelector};
 pub use validation::ProtocolValidationError;

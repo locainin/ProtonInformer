@@ -56,6 +56,12 @@ pub struct HelperInvocation {
 /// Persisted dry-run artifacts and typed invocation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoadDryRunPlan {
+    /// Linux PID selected for the helper operation
+    pub target_pid: u32,
+    /// Linux process start time captured during target inspection
+    pub target_start_time_ticks: u64,
+    /// Linux target filesystem UID captured during target inspection
+    pub target_filesystem_uid: u32,
     /// Windows helper path visible inside the selected prefix
     pub helper_windows_path: String,
     /// Exact helper invocation

@@ -3,15 +3,21 @@
 #![deny(warnings)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::pedantic, clippy::nursery)]
+#![allow(
+    clippy::doc_paragraphs_missing_punctuation,
+    reason = "existing helper documentation uses concise comment-style sentences"
+)]
 
 mod args;
 pub mod error;
 pub mod imports;
 mod load;
+pub mod module_identity;
 mod modules;
 mod process;
 mod protocol;
 mod self_test;
+mod windows_path;
 
 #[cfg(windows)]
 mod winapi;
@@ -22,7 +28,7 @@ use error::HelperFailure;
 
 /// Parses process arguments and returns one helper exit status
 #[must_use]
-pub fn launch() -> ExitCode {
+pub fn main_entry() -> ExitCode {
     match args::parse().and_then(run) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

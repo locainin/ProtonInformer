@@ -46,11 +46,31 @@ pub struct WindowsModuleInfo {
     pub windows_path: String,
 }
 
-/// Successful process enumeration result
+/// Process enumeration result with any partial-read diagnostics
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessQueryResult {
     /// Visible processes
     pub processes: Vec<WindowsProcessInfo>,
+    /// Per-process identity fields that could not be read
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rejections: Vec<ProcessQueryRejection>,
+}
+
+/// One process identity read that was retained instead of silently discarded
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProcessQueryRejection {
+    /// Stable helper error category
+    pub kind: String,
+    /// Detailed operation failure
+    pub message: String,
+    /// Windows error when the API supplied one
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub windows_error: Option<u32>,
+    /// Process whose identity could not be fully inspected
+    pub windows_pid: u32,
+    /// Process basename captured from the process snapshot
+    #[serde(default)]
+    pub process_name: String,
 }
 
 /// Successful module enumeration result
@@ -67,9 +87,9 @@ pub struct ModuleQueryResult {
 pub struct LoadLibraryResult {
     /// Non-fatal dependency visibility findings collected before loading
     pub dependency_warnings: Vec<String>,
-    /// Path reported by module verification
+    /// Windows final path reported by the helper's verified module identity
     pub loaded_module_path: String,
-    /// Whether the exact module path was observed after loading
+    /// Whether the helper observed the verified canonical module after loading
     pub module_verified: bool,
     /// Resolved process basename
     pub process_name: String,
