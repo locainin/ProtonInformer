@@ -67,7 +67,7 @@ pub enum HelperFailure {
     /// A different module with the requested basename is already loaded
     #[error("{0}")]
     ModuleConflict(String),
-    /// Remote loading completed without exact module-path verification
+    /// A non-mutating module query could not prove exact module identity
     #[error("{0}")]
     ModuleVerificationFailed(String),
     /// Payload content or identity changed during validation
@@ -97,6 +97,9 @@ pub enum HelperFailure {
         /// Memory remains allocated because the remote thread may still use it
         remote_allocation_retained: bool,
     },
+    /// Remote loading started but its final state could not be proven
+    #[error("{0}")]
+    LoadIndeterminate(String),
 }
 
 impl HelperFailure {
@@ -142,6 +145,7 @@ impl HelperFailure {
             Self::PayloadUnavailable { code, .. } => ("payload_not_visible", Some(*code)),
             #[cfg(windows)]
             Self::LoadTimeout { .. } => ("load_timeout", None),
+            Self::LoadIndeterminate(_) => ("load_indeterminate", None),
         };
         HelperError {
             kind: kind.into(),

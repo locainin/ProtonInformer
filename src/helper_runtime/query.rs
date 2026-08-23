@@ -87,11 +87,14 @@ fn validate_response(request_id: &str, response: HelperResponse) -> Result<Modul
         ));
     }
     if !response.ok {
-        let detail = response.error.map_or_else(
-            || "helper module query failed without an error".into(),
-            |error| format!("{}: {}", error.kind, error.message),
-        );
-        return Err(Error::HelperExecution(detail));
+        let error = response.error.ok_or_else(|| {
+            Error::HelperExecution("helper module query failed without an error body".into())
+        })?;
+        return Err(Error::HelperRejected {
+            kind: error.kind,
+            message: error.message,
+            windows_error: error.windows_error,
+        });
     }
     let HelperResult::QueryModules(result) = response
         .result
@@ -102,4 +105,61 @@ fn validate_response(request_id: &str, response: HelperResponse) -> Result<Modul
         ));
     };
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_response;
+    use proton_informer_helper_protocol::{
+        HelperError, HelperOperation, HelperResponse, HelperResult, ModuleQueryResult,
+        ProtocolArchitecture, SCHEMA_VERSION,
+    };
+
+    fn response(ok: bool, result: Option<HelperResult>) -> HelperResponse {
+        HelperResponse {
+            error: (!ok).then(|| HelperError {
+                kind: "target_not_found".into(),
+                message: "fixture".into(),
+                windows_error: None,
+            }),
+            ok,
+            operation: HelperOperation::QueryModules,
+            request_id: "request-1".into(),
+            result,
+            schema_version: SCHEMA_VERSION,
+            warnings: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn failed_module_responses_are_rejected_before_result_parsing() {
+        let error = validate_response("request-1", response(false, None))
+            .expect_err("failed helper response");
+
+        assert!(matches!(
+            error,
+            crate::error::Error::HelperRejected { ref kind, .. } if kind == "target_not_found"
+        ));
+    }
+
+    #[test]
+    fn successful_module_responses_return_their_typed_result() {
+        let expected = ModuleQueryResult {
+            modules: Vec::new(),
+            target: proton_informer_helper_protocol::WindowsProcessInfo {
+                architecture: ProtocolArchitecture::X86_64,
+                creation_time_100ns: Some(1),
+                executable_windows_path: Some(r"C:\game.exe".into()),
+                process_name: "game.exe".into(),
+                windows_pid: 1,
+            },
+        };
+        let result = validate_response(
+            "request-1",
+            response(true, Some(HelperResult::QueryModules(expected.clone()))),
+        )
+        .expect("successful helper response");
+
+        assert_eq!(result, expected);
+    }
 }

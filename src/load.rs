@@ -30,7 +30,8 @@ pub struct LoadExecutionResult {
 /// # Errors
 ///
 /// Returns an error for process failure, malformed or mismatched JSON, helper
-/// rejection, missing module verification, or audit-file write failure
+/// rejection, indeterminate mutation, missing module verification, or
+/// audit-file write failure
 pub fn execute(plan: &LoadDryRunPlan, keep_run_files: bool) -> Result<LoadExecutionResult> {
     let execution_timeout = plan
         .request
@@ -38,12 +39,27 @@ pub fn execute(plan: &LoadDryRunPlan, keep_run_files: bool) -> Result<LoadExecut
         .timeout_ms
         .checked_add(HELPER_STARTUP_GRACE_MS)
         .ok_or_else(|| Error::InvalidInput("helper execution timeout overflowed".into()))?;
-    let output = helper_executor::execute_in_directory(
+    // Recheck Linux identity immediately before the helper can mutate Wine
+    crate::process::revalidate_identity(
+        plan.target_pid,
+        plan.target_start_time_ticks,
+        plan.target_filesystem_uid,
+    )?;
+    let output = match helper_executor::execute_in_directory(
         &plan.invocation,
         execution_timeout,
         &plan.run_directory,
         keep_run_files,
-    )?;
+    ) {
+        Err(Error::HelperTimeout { timeout_ms }) => {
+            return Err(Error::IndeterminateLoadTimeout {
+                timeout_ms,
+                detail: "the helper watchdog stopped waiting; the target-side load thread may still be running"
+                    .into(),
+            });
+        }
+        result => result?,
+    };
     if output.exit_code != Some(0) {
         return Err(Error::HelperExecution(format!(
             "exit {:?}: {}",
@@ -76,6 +92,20 @@ fn validate_response(plan: &LoadDryRunPlan, response: &HelperResponse) -> Result
         let error = response.error.as_ref().ok_or_else(|| {
             Error::HelperExecution("helper returned failure without an error body".into())
         })?;
+        match error.kind.as_str() {
+            "load_timeout" => {
+                return Err(Error::IndeterminateLoadTimeout {
+                    timeout_ms: plan.request.options.timeout_ms,
+                    detail: error.message.clone(),
+                });
+            }
+            "load_indeterminate" => {
+                return Err(Error::IndeterminateLoad {
+                    detail: error.message.clone(),
+                });
+            }
+            _ => {}
+        }
         return Err(Error::HelperRejected {
             kind: error.kind.clone(),
             message: error.message.clone(),
@@ -83,10 +113,20 @@ fn validate_response(plan: &LoadDryRunPlan, response: &HelperResponse) -> Result
         });
     }
     match response.result.as_ref() {
-        Some(HelperResult::LoadLibrary(result)) if result.module_verified => Ok(()),
-        Some(HelperResult::LoadLibrary(_)) => Err(Error::HelperExecution(
-            "helper did not verify the loaded module".into(),
-        )),
+        // The helper owns Windows final-path identity. The original request
+        // spelling can legitimately differ after handle canonicalization
+        Some(HelperResult::LoadLibrary(result))
+            if result.module_verified && !result.loaded_module_path.is_empty() =>
+        {
+            Ok(())
+        }
+        Some(HelperResult::LoadLibrary(result)) => Err(Error::ModuleVerificationFailed {
+            actual_path: if result.loaded_module_path.is_empty() {
+                "<missing>".into()
+            } else {
+                result.loaded_module_path.clone()
+            },
+        }),
         _ => Err(Error::HelperExecution(
             "helper returned an unexpected result type".into(),
         )),

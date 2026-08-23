@@ -21,7 +21,6 @@ impl LockedPayload {
 /// Result from the remote loader thread
 pub(super) struct LoadThreadOutcome {
     pub(super) exit_code_low32: u32,
-    pub(super) load_library_return: u64,
     pub(super) windows_error: u32,
 }
 
@@ -51,7 +50,6 @@ pub(super) fn load_library(
     )?;
     Ok(LoadThreadOutcome {
         exit_code_low32: result.exit_code_low32,
-        load_library_return: result.load_library_return,
         windows_error: result.windows_error,
     })
 }

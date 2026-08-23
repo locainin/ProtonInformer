@@ -46,6 +46,10 @@ fn common_failures_keep_stable_protocol_kinds() {
             HelperFailure::InvalidWindowsPath("invalid".into()),
             "invalid_windows_path",
         ),
+        (
+            HelperFailure::LoadIndeterminate("uncertain".into()),
+            "load_indeterminate",
+        ),
     ];
 
     // Check the full table so newly reordered variants cannot change a kind
@@ -72,7 +76,7 @@ fn load_library_rejection_preserves_the_windows_error() {
 fn load_library_rejection_omits_unavailable_windows_error() {
     let error = HelperFailure::LoadLibraryRejected {
         code: 0,
-        message: "LoadLibraryW returned NULL".into(),
+        message: "LoadLibraryW returned a zero 32-bit thread exit status".into(),
     }
     .to_protocol_error();
 

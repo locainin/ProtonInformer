@@ -6,14 +6,16 @@ mod payload;
 mod platform;
 
 use proton_informer_helper_protocol::{
-    HelperOptions, HelperPayload, HelperTarget, LoadLibraryResult, WindowsModuleInfo,
+    HelperOptions, HelperPayload, HelperTarget, LoadLibraryResult, ProtocolArchitecture,
+    WindowsModuleInfo,
 };
 
 use self::dependencies::dependency_warnings;
-use self::modules::{find_basename_conflict, find_module, module_matches_payload};
+use self::modules::{find_basename_conflict, find_module};
 use self::payload::{is_absolute_windows_path, validate_payload};
 use self::platform::{load_library, lock_payload, modules};
 use crate::error::HelperFailure;
+use crate::windows_path::windows_path_equal;
 
 /// Validates, loads, and verifies one DLL in the resolved target
 ///
@@ -44,10 +46,10 @@ pub fn run(
         advisory_dependency_warnings(locked.canonical_path(), &process, &modules_before);
 
     // Repeated requests are idempotent when the exact payload path is loaded
-    if let Some(module) = find_module(&modules_before, locked.canonical_path()) {
+    if find_module(&modules_before, locked.canonical_path()).is_some() {
         return Ok(result(
             &process,
-            module.windows_path.clone(),
+            locked.canonical_path().to_owned(),
             None,
             dependency_warnings,
             true,
@@ -56,17 +58,6 @@ pub fn run(
         ));
     }
     if let Some(module) = find_basename_conflict(&modules_before, locked.canonical_path()) {
-        if module_matches_payload(module, payload) {
-            return Ok(result(
-                &process,
-                module.windows_path.clone(),
-                None,
-                dependency_warnings,
-                true,
-                &modules_before,
-                &modules_before,
-            ));
-        }
         return Err(HelperFailure::ModuleConflict(format!(
             "{} is already loaded from {}, requested {}",
             module.module_name,
@@ -85,40 +76,62 @@ pub fn run(
             )
         })?,
     )?;
-    let process_after = crate::process::resolve(target)?;
+    let process_after = crate::process::resolve(target).map_err(|error| {
+        HelperFailure::LoadIndeterminate(format!(
+            "remote load completed, but target identity could not be verified afterward: {error}"
+        ))
+    })?;
     if process_after.windows_pid != process.windows_pid
         || process_after.creation_time_100ns != process.creation_time_100ns
     {
-        return Err(HelperFailure::TargetIdentityChanged(
-            "selected process identity changed before module verification".into(),
+        return Err(HelperFailure::LoadIndeterminate(
+            "remote load completed, but the selected process identity changed before module \
+             verification"
+                .into(),
         ));
     }
-    let modules_after = modules(process.windows_pid)?;
-    let Some(loaded) = find_module(&modules_after, locked.canonical_path()) else {
-        return if thread.load_library_return == 0 {
-            Err(HelperFailure::LoadLibraryRejected {
-                code: thread.windows_error,
-                message: "LoadLibraryW returned NULL; target-side GetLastError is unavailable in \
-                          standard loader mode."
-                    .into(),
-            })
-        } else {
-            Err(HelperFailure::ModuleVerificationFailed(format!(
-                "LoadLibraryW returned {:#018x}, but {} was not observed",
-                thread.load_library_return,
-                locked.canonical_path()
-            )))
-        };
+    let modules_after = modules(process.windows_pid).map_err(|error| {
+        HelperFailure::LoadIndeterminate(format!(
+            "remote load completed, but module verification failed: {error}"
+        ))
+    })?;
+    let Some(_loaded) = find_module(&modules_after, locked.canonical_path()) else {
+        return Err(missing_module_failure(
+            process.architecture,
+            &thread,
+            locked.canonical_path(),
+        ));
     };
 
     Ok(result(
         &process,
-        loaded.windows_path.clone(),
+        locked.canonical_path().to_owned(),
         Some(thread.exit_code_low32),
         dependency_warnings,
         false,
         &modules_before,
         &modules_after,
+    ))
+}
+
+/// Interprets a missing post-load module without treating x64 low bits as a pointer
+fn missing_module_failure(
+    architecture: ProtocolArchitecture,
+    thread: &self::platform::LoadThreadOutcome,
+    path: &str,
+) -> HelperFailure {
+    if architecture == ProtocolArchitecture::X86 && thread.exit_code_low32 == 0 {
+        return HelperFailure::LoadLibraryRejected {
+            code: thread.windows_error,
+            message: "LoadLibraryW returned a zero 32-bit thread exit status; target-side \
+                      GetLastError is unavailable in standard loader mode."
+                .into(),
+        };
+    }
+
+    HelperFailure::LoadIndeterminate(format!(
+        "LoadLibraryW returned low 32-bit thread exit code {:#010x} for {:?}, but {} was not observed",
+        thread.exit_code_low32, architecture, path
     ))
 }
 
@@ -170,12 +183,57 @@ fn modules_added(
     modules_after
         .iter()
         .filter(|after| {
-            !modules_before.iter().any(|before| {
-                before
-                    .windows_path
-                    .eq_ignore_ascii_case(after.windows_path.as_str())
-            })
+            !modules_before
+                .iter()
+                .any(|before| windows_path_equal(&before.windows_path, &after.windows_path))
         })
         .cloned()
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{missing_module_failure, modules_added};
+    use crate::error::HelperFailure;
+    use crate::load::platform::LoadThreadOutcome;
+    use proton_informer_helper_protocol::{ProtocolArchitecture, WindowsModuleInfo};
+
+    fn thread(exit_code_low32: u32) -> LoadThreadOutcome {
+        LoadThreadOutcome {
+            exit_code_low32,
+            windows_error: 126,
+        }
+    }
+
+    #[test]
+    fn x86_zero_status_can_prove_loader_rejection() {
+        let error =
+            missing_module_failure(ProtocolArchitecture::X86, &thread(0), r"C:\\payload.dll");
+
+        assert!(matches!(error, HelperFailure::LoadLibraryRejected { .. }));
+    }
+
+    #[test]
+    fn x64_zero_status_remains_indeterminate() {
+        let error =
+            missing_module_failure(ProtocolArchitecture::X86_64, &thread(0), r"C:\\payload.dll");
+
+        assert!(matches!(error, HelperFailure::LoadIndeterminate(_)));
+    }
+
+    #[test]
+    fn module_delta_contains_only_paths_absent_before_loading() {
+        let before = WindowsModuleInfo {
+            module_name: "existing.dll".into(),
+            windows_path: r"C:\existing.dll".into(),
+        };
+        let added = WindowsModuleInfo {
+            module_name: "payload.dll".into(),
+            windows_path: r"C:\payload.dll".into(),
+        };
+
+        let delta = modules_added(&[before.clone()], &[before, added.clone()]);
+
+        assert_eq!(delta, vec![added]);
+    }
 }

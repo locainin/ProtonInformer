@@ -223,11 +223,17 @@ fn malformed_import_preflight_does_not_replace_windows_loader_failure() {
 
     assert!(!response.ok);
     let error = response.error.expect("loader error");
-    assert_eq!(error.kind, "load_library_rejected");
-    assert_eq!(
-        error.message,
-        "LoadLibraryW returned NULL; target-side GetLastError is unavailable in standard loader \
-         mode."
-    );
-    assert_eq!(error.windows_error, None);
+    if process.architecture == ProtocolArchitecture::X86 {
+        assert_eq!(error.kind, "load_library_rejected");
+        assert_eq!(
+            error.message,
+            "LoadLibraryW returned a zero 32-bit thread exit status; target-side GetLastError is unavailable in \
+             standard loader mode."
+        );
+        assert_eq!(error.windows_error, None);
+    } else {
+        assert_eq!(error.kind, "load_indeterminate");
+        assert!(error.message.contains("low 32-bit thread exit code"));
+        assert_eq!(error.windows_error, None);
+    }
 }

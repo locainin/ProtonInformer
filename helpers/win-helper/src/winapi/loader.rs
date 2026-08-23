@@ -22,6 +22,7 @@ use super::common::{OwnedHandle, last_error, last_error_code, null_terminated_wi
 use super::modules::{ModuleAddress, module_addresses};
 use super::processes::process_creation_time;
 use crate::error::HelperFailure;
+use crate::windows_path::windows_string_equal;
 
 /// Remote allocation released after the loader thread no longer uses it
 struct RemoteAllocation {
@@ -38,8 +39,6 @@ struct RemoteLoader {
 
 /// Result from the standard remote `LoadLibraryW` thread
 pub struct LoadLibraryThreadResult {
-    /// Full pointer-sized value returned by `LoadLibraryW`
-    pub load_library_return: u64,
     /// Target-side error when a diagnostic loader records one
     pub windows_error: u32,
     /// Windows thread exit codes are always 32-bit, even for 64-bit modules
@@ -132,7 +131,12 @@ impl RemoteLoader {
             .map_err(|_| HelperFailure::Validation("timeout does not fit u32".into()))?;
         // SAFETY: thread is a valid synchronization handle
         match unsafe { WaitForSingleObject(thread.raw(), timeout) } {
-            WAIT_OBJECT_0 => completed_result(&thread),
+            WAIT_OBJECT_0 => completed_result(&thread).map_err(|error| {
+                HelperFailure::LoadIndeterminate(format!(
+                    "remote load thread completed, but its 32-bit exit status could not be read: \
+                     {error}"
+                ))
+            }),
             WAIT_TIMEOUT => {
                 // The thread may still read the remote DLL path
                 self.path.retain();
@@ -145,17 +149,17 @@ impl RemoteLoader {
                 let code = last_error_code();
                 // A failed wait does not prove that the remote thread stopped
                 self.path.retain();
-                Err(HelperFailure::Windows {
-                    code,
-                    operation: "WaitForSingleObject; remote allocations retained",
-                })
+                Err(HelperFailure::LoadIndeterminate(format!(
+                    "WaitForSingleObject failed with Windows error {code}; the remote load thread \
+                     may still be running and its allocation was retained"
+                )))
             }
             status => {
                 // Unknown wait states also leave thread completion uncertain
                 self.path.retain();
-                Err(HelperFailure::LoadFailed(format!(
-                    "WaitForSingleObject returned unexpected status {status}; remote allocations \
-                     retained"
+                Err(HelperFailure::LoadIndeterminate(format!(
+                    "WaitForSingleObject returned unexpected status {status}; the remote load \
+                     thread may still be running and its allocation was retained"
                 )))
             }
         }
@@ -170,7 +174,6 @@ fn completed_result(thread: &OwnedHandle) -> Result<LoadLibraryThreadResult, Hel
         return Err(last_error("GetExitCodeThread"));
     }
     Ok(LoadLibraryThreadResult {
-        load_library_return: u64::from(exit_code_low32),
         // Standard `CreateRemoteThread(LoadLibraryW)` cannot safely read target-local `GetLastError`
         windows_error: 0,
         exit_code_low32,
@@ -214,7 +217,7 @@ fn open_load_process(
         });
     }
     let process = OwnedHandle::new(handle, "OpenProcess load")?;
-    let actual_creation_time_100ns = process_creation_time(&process).ok_or_else(|| {
+    let actual_creation_time_100ns = process_creation_time(&process).map_err(|_| {
         HelperFailure::TargetIdentityChanged(format!(
             "Windows process {windows_pid} creation time could not be verified"
         ))
@@ -314,7 +317,7 @@ fn module_containing(windows_pid: u32, address: usize) -> Result<ModuleAddress, 
 fn remote_module(windows_pid: u32, expected_name: &str) -> Result<ModuleAddress, HelperFailure> {
     module_addresses(windows_pid)?
         .into_iter()
-        .find(|module| module.name.eq_ignore_ascii_case(expected_name))
+        .find(|module| windows_string_equal(&module.name, expected_name))
         .ok_or_else(|| {
             HelperFailure::LoadFailed(format!(
                 "{expected_name} was not found in the target process"

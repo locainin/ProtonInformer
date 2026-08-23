@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use crate::error::{Error, Result};
-use crate::process::{ClassificationConfidence, ProcessInfo, TargetKind};
+use crate::process::{ClassificationConfidence, ProcessInfo, ProcessListReport, TargetKind};
 use crate::steam;
 
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(500);
@@ -85,11 +85,11 @@ fn select_explicit_pid(pid: u32, process_name: Option<&str>) -> Result<ProcessIn
 /// Finds the unique trusted guest executable inside one Steam game directory
 fn select_steam_target(app_id: u32, process_name: Option<&str>) -> Result<ProcessInfo> {
     let game_directory = steam_game_directory(app_id)?;
-    select_steam_process(
+    select_steam_process_report(
         app_id,
         process_name,
         &game_directory,
-        crate::process::list(),
+        crate::process::list_owned_report(),
     )
 }
 
@@ -105,12 +105,19 @@ fn wait_for_steam_target(
         .ok_or_else(|| Error::InvalidInput("wait deadline overflowed".into()))?;
 
     loop {
-        let mut candidates = trusted_steam_candidates(
+        let snapshot = crate::process::list_owned_report();
+        let (mut candidates, mut rejected) = trusted_steam_candidates(
             app_id,
             Some(process_name),
             &game_directory,
-            crate::process::list(),
+            snapshot.processes,
         );
+        rejected.extend(snapshot.rejections.into_iter().map(|rejection| {
+            rejection.pid.map_or_else(
+                || format!("{}: {}", rejection.kind, rejection.message),
+                |pid| format!("PID {pid}: {}", rejection.message),
+            )
+        }));
         match candidates.len() {
             1 => return Ok(candidates.remove(0)),
             0 => {}
@@ -119,8 +126,9 @@ fn wait_for_steam_target(
 
         let now = Instant::now();
         if now >= deadline {
+            let detail = diagnostic_suffix(&rejected);
             return Err(Error::InvalidInput(format!(
-                "timed out after {} seconds waiting for {process_name} in Steam AppID {app_id}",
+                "timed out after {} seconds waiting for {process_name} in Steam AppID {app_id}{detail}",
                 wait_for.as_secs()
             )));
         }
@@ -133,11 +141,14 @@ fn wait_for_steam_target(
 fn steam_game_directory(app_id: u32) -> Result<PathBuf> {
     let (game, warnings) = steam::find_game(app_id);
     let game = game.ok_or_else(|| {
-        let warning_text = if warnings.is_empty() {
-            String::new()
-        } else {
-            format!("; Steam discovery reported {} warning(s)", warnings.len())
-        };
+        let warning_text = warnings.first().map_or_else(String::new, |warning| {
+            format!(
+                "; Steam discovery reported {} warning(s), first at {}: {}",
+                warnings.len(),
+                warning.path.display(),
+                warning.message
+            )
+        });
         Error::InvalidInput(format!("Steam AppID {app_id} was not found{warning_text}"))
     })?;
     if !game.game_dir_exists {
@@ -166,13 +177,39 @@ pub fn select_steam_process(
     game_directory: &Path,
     processes: Vec<ProcessInfo>,
 ) -> Result<ProcessInfo> {
-    let mut candidates = trusted_steam_candidates(app_id, process_name, game_directory, processes);
+    let canonical_game_directory = game_directory
+        .canonicalize()
+        .map_err(|source| Error::io(game_directory, source))?;
+    select_steam_process_report(
+        app_id,
+        process_name,
+        &canonical_game_directory,
+        ProcessListReport {
+            processes,
+            rejections: Vec::new(),
+        },
+    )
+}
+
+/// Selects from one process report while retaining operational rejections
+fn select_steam_process_report(
+    app_id: u32,
+    process_name: Option<&str>,
+    game_directory: &Path,
+    report: ProcessListReport,
+) -> Result<ProcessInfo> {
+    let (mut candidates, mut rejected) =
+        trusted_steam_candidates(app_id, process_name, game_directory, report.processes);
+    rejected.extend(report.rejections.into_iter().map(|rejection| {
+        rejection.pid.map_or_else(
+            || format!("{}: {}", rejection.kind, rejection.message),
+            |pid| format!("PID {pid}: {}", rejection.message),
+        )
+    }));
 
     match candidates.len() {
         1 => Ok(candidates.remove(0)),
-        0 => Err(Error::InvalidInput(format!(
-            "no trusted running game process was found for Steam AppID {app_id}"
-        ))),
+        0 => Err(no_trusted_target(app_id, &rejected)),
         count => Err(ambiguous_target(app_id, &candidates, count)),
     }
 }
@@ -183,18 +220,38 @@ fn trusted_steam_candidates(
     process_name: Option<&str>,
     game_directory: &Path,
     processes: Vec<ProcessInfo>,
-) -> Vec<ProcessInfo> {
-    let mut candidates: Vec<_> = processes
-        .into_iter()
-        .filter(|target| target.steam_app_id == Some(app_id))
-        .filter(|target| validate_supported_target(target).is_ok())
-        .filter(|target| guest_is_inside(target, game_directory))
-        .filter(|target| {
-            process_name.is_none_or(|expected| guest_basename_matches(target, expected))
-        })
-        .collect();
+) -> (Vec<ProcessInfo>, Vec<String>) {
+    let mut candidates = Vec::new();
+    let mut rejected = Vec::new();
+    for target in processes {
+        if target.steam_app_id != Some(app_id) {
+            continue;
+        }
+        if let Err(error) = validate_supported_target(&target) {
+            rejected.push(format!("PID {}: {error}", target.pid));
+            continue;
+        }
+        match guest_is_inside(&target, game_directory) {
+            Ok(true) => {}
+            Ok(false) => {
+                rejected.push(format!(
+                    "PID {}: guest executable is outside {}",
+                    target.pid,
+                    game_directory.display()
+                ));
+                continue;
+            }
+            Err(error) => {
+                rejected.push(format!("PID {}: {error}", target.pid));
+                continue;
+            }
+        }
+        if process_name.is_none_or(|expected| guest_basename_matches(&target, expected)) {
+            candidates.push(target);
+        }
+    }
     candidates.sort_by_key(|target| target.pid);
-    candidates
+    (candidates, rejected)
 }
 
 /// Builds one deterministic ambiguity error for immediate and waiting modes
@@ -212,10 +269,28 @@ fn ambiguous_target(app_id: u32, candidates: &[ProcessInfo], count: usize) -> Er
         })
         .collect::<Vec<_>>()
         .join(", ");
-    Error::InvalidInput(format!(
+    Error::TargetAmbiguous(format!(
         "{count} trusted game processes matched Steam AppID {app_id}: {identities}; add --process \
          or use --pid"
     ))
+}
+
+/// Builds a concise no-match error with the first retained rejection reason
+fn no_trusted_target(app_id: u32, rejected: &[String]) -> Error {
+    Error::InvalidInput(format!(
+        "no trusted running game process was found for Steam AppID {app_id}{}",
+        diagnostic_suffix(rejected)
+    ))
+}
+
+/// Keeps detailed scan failures out of the normal primary message
+fn diagnostic_suffix(rejected: &[String]) -> String {
+    rejected.first().map_or_else(String::new, |detail| {
+        format!(
+            "; {} candidate rejection(s), first: {detail}",
+            rejected.len()
+        )
+    })
 }
 
 /// Rejects wrappers, foreign processes, and weak Wine classification
@@ -243,16 +318,19 @@ fn validate_supported_target(target: &ProcessInfo) -> Result<()> {
     Ok(())
 }
 
-/// Checks the canonical guest executable remains under the game directory
-fn guest_is_inside(target: &ProcessInfo, game_directory: &Path) -> bool {
+/// Checks the canonical guest executable remains under a canonical game directory
+fn guest_is_inside(target: &ProcessInfo, game_directory: &Path) -> Result<bool> {
     target
         .guest_executable
         .as_ref()
-        .and_then(|guest| guest.path.canonicalize().ok())
-        .is_some_and(|guest| guest.starts_with(game_directory))
+        .ok_or_else(|| Error::Rejected("target guest executable path is unknown".into()))?
+        .path
+        .canonicalize()
+        .map(|guest| guest.starts_with(game_directory))
+        .map_err(|source| Error::io("guest executable", source))
 }
 
-/// Compares only the guest executable basename using Windows case rules
+/// Compares only the guest executable basename with ASCII-insensitive matching
 fn guest_basename_matches(target: &ProcessInfo, expected: &str) -> bool {
     let expected = expected.rsplit(['\\', '/']).next().unwrap_or(expected);
     target
