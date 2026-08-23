@@ -1,5 +1,6 @@
 //! One-command Steam process selection checks
 
+use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -16,16 +17,17 @@ fn process(pid: u32, app_id: u32, guest: &Path) -> ProcessInfo {
         command: vec![guest.display().to_string()],
         compatdata_dir: Some(PathBuf::from("/steam/compatdata").join(app_id.to_string())),
         environment_status: EnvironmentStatus::Read,
+        evidence_failures: Vec::new(),
         executable: None,
         guest_architecture: Some(Architecture::X86_64),
         guest_executable: Some(GuestExecutableCandidate {
             path: guest.to_path_buf(),
             source: GuestExecutableSource::AbsoluteUnixArgument,
         }),
-        host_architecture: Architecture::X86_64,
         name: "Main".into(),
         owned_by_current_user: Some(true),
         pid,
+        start_time_ticks: 0,
         proton_dist: Some(PathBuf::from("/steam/proton")),
         steam_app_id: Some(app_id),
         steam_client_path: Some(PathBuf::from("/steam")),
@@ -81,6 +83,27 @@ fn app_id_never_guesses_when_multiple_game_processes_match() {
     .expect_err("ambiguous targets must fail");
 
     assert!(error.to_string().contains("add --process or use --pid"));
+}
+
+#[test]
+fn steam_selection_compares_canonical_game_and_guest_paths() {
+    let directory = tempfile::tempdir().expect("temporary directory");
+    let real_game = directory.path().join("real-game");
+    let linked_game = directory.path().join("linked-game");
+    std::fs::create_dir(&real_game).expect("real game directory");
+    symlink(&real_game, &linked_game).expect("game directory symlink");
+    let executable = real_game.join("game.exe");
+    std::fs::write(&executable, b"MZ").expect("guest executable");
+
+    let selected = select_steam_process(
+        311_210,
+        None,
+        &linked_game,
+        vec![process(200, 311_210, &executable)],
+    )
+    .expect("canonical guest path remains inside linked game directory");
+
+    assert_eq!(selected.pid, 200);
 }
 
 #[test]

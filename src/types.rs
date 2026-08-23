@@ -21,23 +21,6 @@ pub enum Architecture {
     Unknown,
 }
 
-impl Architecture {
-    /// Returns the architecture of the native `ProtonInformer` process
-    ///
-    /// This value is valid for native targets only and is never used as a
-    /// fallback for the architecture of a Windows process under Wine
-    #[must_use]
-    pub fn host() -> Self {
-        match std::env::consts::ARCH {
-            "x86" => Self::X86,
-            "x86_64" => Self::X86_64,
-            "arm" => Self::Arm,
-            "aarch64" => Self::Aarch64,
-            _ => Self::Unknown,
-        }
-    }
-}
-
 impl fmt::Display for Architecture {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Keep user-facing output stable and independent from Rust target names

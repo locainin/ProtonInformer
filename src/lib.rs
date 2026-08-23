@@ -6,6 +6,10 @@
 #![forbid(unsafe_code)]
 #![deny(warnings)]
 #![warn(clippy::pedantic, clippy::nursery)]
+#![allow(
+    clippy::doc_paragraphs_missing_punctuation,
+    reason = "existing API documentation uses concise comment-style sentences"
+)]
 
 pub mod binary;
 pub mod cli;
@@ -77,11 +81,13 @@ pub mod process {
     mod model;
     mod procfs;
 
+    pub use evidence::resolve_guest_executable;
     pub use model::{
         ClassificationConfidence, EnvironmentStatus, GuestExecutableCandidate,
-        GuestExecutableSource, ProcessInfo, ProcessUids, TargetKind,
+        GuestExecutableSource, ProcessEvidenceFailure, ProcessInfo, ProcessInspectionFailure,
+        ProcessListReport, ProcessUids, TargetKind,
     };
-    pub use procfs::{inspect, list};
+    pub use procfs::{inspect, list, list_owned_report, list_report, revalidate_identity};
 }
 pub mod runs;
 pub mod steam;

@@ -24,6 +24,25 @@ pub enum Error {
     #[error("process {0} does not exist or is not readable")]
     ProcessUnavailable(u32),
 
+    #[error(
+        "process {pid} identity changed during inspection (start time {expected_start_time_ticks} -> {actual_start_time_ticks})"
+    )]
+    ProcessIdentityChanged {
+        pid: u32,
+        expected_start_time_ticks: u64,
+        actual_start_time_ticks: u64,
+    },
+
+    #[error(
+        "process {pid} filesystem ownership changed (expected {expected_filesystem_uid}, actual {actual_filesystem_uid}, controller {current_filesystem_uid})"
+    )]
+    ProcessOwnershipChanged {
+        pid: u32,
+        expected_filesystem_uid: u32,
+        actual_filesystem_uid: u32,
+        current_filesystem_uid: u32,
+    },
+
     #[error("payload rejected: {0}")]
     Rejected(String),
 
@@ -32,6 +51,27 @@ pub enum Error {
 
     #[error("unable to convert path {path}: {reason}")]
     PathConversion { path: String, reason: String },
+
+    #[error("selected process environment is invalid at {path}: {reason}")]
+    InvalidProcessEnvironment { path: PathBuf, reason: String },
+
+    #[error("Steam/Proton identity sources conflict: {details}")]
+    SteamIdentityConflict { details: String },
+
+    #[error("no configured Wine drive contains {path}")]
+    NoDriveMappingForPath { path: String },
+
+    #[error("Wine drive mapping inspection was incomplete for {path}: {details}")]
+    DriveMappingInspectionIncomplete { path: String, details: String },
+
+    #[error("Wine drive {drive}: has conflicting canonical mappings: {roots:?}")]
+    AmbiguousDriveMapping { drive: char, roots: Vec<PathBuf> },
+
+    #[error("guest executable discovery is ambiguous; candidates: {candidates:?}")]
+    AmbiguousGuestExecutable { candidates: Vec<PathBuf> },
+
+    #[error("target selection is ambiguous: {0}")]
+    TargetAmbiguous(String),
 
     #[error("invalid command input: {0}")]
     InvalidInput(String),
@@ -48,6 +88,17 @@ pub enum Error {
 
     #[error("helper execution exceeded {timeout_ms} ms")]
     HelperTimeout { timeout_ms: u64 },
+
+    #[error(
+        "remote load outcome is indeterminate after {timeout_ms} ms: {detail}; automatic retry is unsafe"
+    )]
+    IndeterminateLoadTimeout { timeout_ms: u64, detail: String },
+
+    #[error("remote load outcome is indeterminate: {detail}; automatic retry is unsafe")]
+    IndeterminateLoad { detail: String },
+
+    #[error("helper did not verify the requested payload module (helper path: {actual_path})")]
+    ModuleVerificationFailed { actual_path: String },
 
     #[error("JSON serialization failed: {0}")]
     Json(#[from] serde_json::Error),
@@ -70,15 +121,25 @@ impl Error {
             Self::PayloadTooLarge { .. } => "payload_too_large",
             Self::InvalidBinary { .. } => "invalid_binary",
             Self::ProcessUnavailable(_) => "process_unavailable",
+            Self::ProcessIdentityChanged { .. } => "process_identity_changed",
+            Self::ProcessOwnershipChanged { .. } => "process_ownership_changed",
             Self::Rejected(_) => "rejected",
             Self::SteamMetadata { .. } => "steam_metadata",
             Self::PathConversion { .. } => "path_conversion",
+            Self::InvalidProcessEnvironment { .. } => "invalid_process_environment",
+            Self::SteamIdentityConflict { .. } => "steam_identity_conflict",
+            Self::NoDriveMappingForPath { .. } => "no_drive_mapping",
+            Self::DriveMappingInspectionIncomplete { .. } => "drive_mapping_inspection_incomplete",
+            Self::AmbiguousDriveMapping { .. } => "ambiguous_drive_mapping",
+            Self::AmbiguousGuestExecutable { .. } => "ambiguous_guest_executable",
+            Self::TargetAmbiguous(_) => "target_ambiguous",
             Self::InvalidInput(_) => "invalid_input",
             Self::HelperExecution(_) => "helper_execution",
             Self::HelperRejected { kind, .. } => match kind.as_str() {
                 "architecture_mismatch" => "architecture_mismatch",
                 "invalid_windows_path" => "invalid_windows_path",
                 "load_library_rejected" => "load_library_rejected",
+                "load_indeterminate" => "load_indeterminate",
                 "load_timeout" => "load_timeout",
                 "module_conflict" => "module_conflict",
                 "module_verification_failed" => "module_verification_failed",
@@ -89,6 +150,9 @@ impl Error {
                 _ => "helper_rejected",
             },
             Self::HelperTimeout { .. } => "helper_timeout",
+            Self::IndeterminateLoadTimeout { .. } => "indeterminate_load_timeout",
+            Self::IndeterminateLoad { .. } => "indeterminate_load",
+            Self::ModuleVerificationFailed { .. } => "module_verification_failed",
             Self::Json(_) => "json",
         }
     }
@@ -136,12 +200,24 @@ impl Error {
             | Self::PayloadTooLarge { .. }
             | Self::InvalidBinary { .. }
             | Self::ProcessUnavailable(_)
+            | Self::ProcessIdentityChanged { .. }
+            | Self::ProcessOwnershipChanged { .. }
             | Self::Rejected(_)
             | Self::SteamMetadata { .. }
             | Self::PathConversion { .. }
+            | Self::InvalidProcessEnvironment { .. }
+            | Self::SteamIdentityConflict { .. }
+            | Self::NoDriveMappingForPath { .. }
+            | Self::DriveMappingInspectionIncomplete { .. }
+            | Self::AmbiguousDriveMapping { .. }
+            | Self::AmbiguousGuestExecutable { .. }
+            | Self::TargetAmbiguous(_)
             | Self::InvalidInput(_)
             | Self::HelperExecution(_)
             | Self::HelperTimeout { .. }
+            | Self::IndeterminateLoadTimeout { .. }
+            | Self::IndeterminateLoad { .. }
+            | Self::ModuleVerificationFailed { .. }
             | Self::Json(_) => None,
         }
     }

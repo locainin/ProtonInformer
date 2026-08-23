@@ -1,4 +1,4 @@
-use crate::process::ProcessInfo;
+use crate::process::{ProcessEvidenceFailure, ProcessInfo, ProcessInspectionFailure};
 use crate::steam::SteamDiscoveryReport;
 use proton_informer_helper_protocol::ModuleQueryResult;
 
@@ -10,6 +10,7 @@ use super::common::display_optional_path;
 pub(in crate::cli) fn print_process(process: &ProcessInfo) {
     println!("Process");
     println!("  PID:                 {}", process.pid);
+    println!("  Start time ticks:    {}", process.start_time_ticks);
     println!("  UIDs:                {:?}", process.uids);
     println!("  Name:                {}", process.name);
     println!("  Kind:                {:?}", process.target_kind);
@@ -18,7 +19,6 @@ pub(in crate::cli) fn print_process(process: &ProcessInfo) {
         process.classification_confidence
     );
     println!("  Environment:         {:?}", process.environment_status);
-    println!("  Host architecture:   {}", process.host_architecture);
     println!(
         "  Guest executable:    {}",
         display_optional_path(
@@ -53,6 +53,31 @@ pub(in crate::cli) fn print_process(process: &ProcessInfo) {
             .steam_app_id
             .map_or_else(|| "<unknown>".into(), |id| id.to_string())
     );
+}
+
+/// Writes retained process-scan failures only in diagnostic text mode
+pub(in crate::cli) fn print_process_rejections(rejections: &[ProcessInspectionFailure]) {
+    for rejection in rejections {
+        let pid = rejection
+            .pid
+            .map_or_else(|| "<proc>".into(), |pid| pid.to_string());
+        eprintln!(
+            "Process rejection ({pid}, {}): {}",
+            rejection.kind, rejection.message
+        );
+    }
+}
+
+/// Writes optional evidence failures retained on a surviving process row
+pub(in crate::cli) fn print_process_evidence_failures(process: &ProcessInfo) {
+    for failure in &process.evidence_failures {
+        print_process_evidence_failure(failure);
+    }
+}
+
+/// Writes one optional evidence failure in diagnostic text mode
+fn print_process_evidence_failure(failure: &ProcessEvidenceFailure) {
+    eprintln!("Process evidence ({}): {}", failure.kind, failure.message);
 }
 
 /// Writes loaded modules returned by the exact Windows target

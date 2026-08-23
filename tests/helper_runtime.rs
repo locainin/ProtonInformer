@@ -5,6 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::fs::symlink;
 use std::path::PathBuf;
 
+use proton_informer::Error;
 use proton_informer::binary;
 use proton_informer::helper_runtime::{
     PayloadPathMode, create_request_directory, prepare_payload_for_request, select_runtime,
@@ -22,13 +23,14 @@ fn target() -> ProcessInfo {
         command: Vec::new(),
         compatdata_dir: None,
         environment_status: EnvironmentStatus::Read,
+        evidence_failures: Vec::new(),
         executable: None,
         guest_architecture: Some(Architecture::X86_64),
         guest_executable: None,
-        host_architecture: Architecture::X86_64,
         name: "game.exe".into(),
         owned_by_current_user: Some(true),
         pid: 1_000,
+        start_time_ticks: 0,
         proton_dist: None,
         steam_app_id: None,
         steam_client_path: None,
@@ -150,14 +152,76 @@ fn request_directory_creation_matches_cleanup_safety_rules() {
     }
 }
 
+#[test]
+fn request_directory_does_not_fallback_after_a_broken_drive_mapping() {
+    let directory = tempdir().expect("temporary directory");
+    let prefix = directory.path().join("pfx");
+    fs::create_dir_all(prefix.join("dosdevices")).expect("dosdevices directory");
+    symlink("../missing-drive", prefix.join("dosdevices/c:")).expect("broken C mapping");
+
+    let error = create_request_directory(&prefix, "e0b3d1b8-25dc-49d7-94f9-3ff29c9e0edc")
+        .expect_err("broken drive conversion must remain an operational error");
+
+    assert!(matches!(
+        error,
+        Error::DriveMappingInspectionIncomplete { .. }
+    ));
+    assert!(!prefix.join("drive_c/.proton-informer").exists());
+}
+
+#[test]
+fn request_directory_ignores_unrelated_ambiguous_drive_mapping() {
+    let directory = tempdir().expect("temporary directory");
+    let prefix = directory.path().join("pfx");
+    let drive_c = prefix.join("drive_c");
+    let first_d = directory.path().join("first-d");
+    let second_d = directory.path().join("second-d");
+    fs::create_dir_all(prefix.join("dosdevices")).expect("create dosdevices");
+    fs::create_dir_all(&drive_c).expect("create drive C");
+    fs::create_dir_all(&first_d).expect("create first drive D");
+    fs::create_dir_all(&second_d).expect("create second drive D");
+    symlink("../drive_c", prefix.join("dosdevices/c:")).expect("C drive mapping");
+    symlink(&first_d, prefix.join("dosdevices/d:")).expect("lowercase D mapping");
+    symlink(&second_d, prefix.join("dosdevices/D:")).expect("uppercase D mapping");
+
+    let request_directory =
+        create_request_directory(&prefix, "b5ef8d43-25d6-42a2-bd0c-71ec6e2493c1")
+            .expect("unrelated ambiguity must not block C fallback");
+
+    assert!(request_directory.starts_with(drive_c));
+}
+
+#[test]
+fn request_directory_reports_ambiguous_c_drive_mapping() {
+    let directory = tempdir().expect("temporary directory");
+    let prefix = directory.path().join("pfx");
+    let first_c = directory.path().join("first-c");
+    let second_c = directory.path().join("second-c");
+    fs::create_dir_all(prefix.join("dosdevices")).expect("create dosdevices");
+    fs::create_dir_all(&first_c).expect("create first drive C");
+    fs::create_dir_all(&second_c).expect("create second drive C");
+    symlink(&first_c, prefix.join("dosdevices/c:")).expect("lowercase C mapping");
+    symlink(&second_c, prefix.join("dosdevices/C:")).expect("uppercase C mapping");
+
+    let error = create_request_directory(&prefix, "d4aa809d-d4bd-4fc1-a22c-295a4ea19f9d")
+        .expect_err("ambiguous C fallback must fail closed");
+
+    assert!(matches!(
+        error,
+        Error::AmbiguousDriveMapping { drive: 'c', .. }
+    ));
+}
+
 fn write_minimal_pe_dll(path: &std::path::Path) {
-    let mut bytes = vec![0_u8; 0x188];
+    let section_table = 0x188;
+    let mut bytes = vec![0_u8; section_table + 3 * 40];
     bytes[0..2].copy_from_slice(b"MZ");
     bytes[0x3c..0x40].copy_from_slice(&0x80_u32.to_le_bytes());
     bytes[0x80..0x84].copy_from_slice(b"PE\0\0");
 
     let coff = 0x84;
     bytes[coff..coff + 2].copy_from_slice(&0x8664_u16.to_le_bytes());
+    bytes[coff + 2..coff + 4].copy_from_slice(&3_u16.to_le_bytes());
     bytes[coff + 16..coff + 18].copy_from_slice(&0xf0_u16.to_le_bytes());
     bytes[coff + 18..coff + 20].copy_from_slice(&0x2022_u16.to_le_bytes());
 
@@ -171,6 +235,20 @@ fn write_minimal_pe_dll(path: &std::path::Path) {
     bytes[optional + 60..optional + 64].copy_from_slice(&0x200_u32.to_le_bytes());
     bytes[optional + 68..optional + 70].copy_from_slice(&3_u16.to_le_bytes());
     bytes[optional + 92..optional + 96].copy_from_slice(&16_u32.to_le_bytes());
+
+    // Keep one complete header for every declared section
+    let names = [b".text\0\0\0", b".rdata\0\0", b".data\0\0\0"];
+    for (index, name) in names.iter().enumerate() {
+        let section = section_table + index * 40;
+        bytes[section..section + 8].copy_from_slice(*name);
+        bytes[section + 8..section + 12].copy_from_slice(&0x1000_u32.to_le_bytes());
+        bytes[section + 12..section + 16]
+            .copy_from_slice(&(0x1000_u32 * (index as u32 + 1)).to_le_bytes());
+        bytes[section + 16..section + 20].copy_from_slice(&0x200_u32.to_le_bytes());
+        bytes[section + 20..section + 24]
+            .copy_from_slice(&(0x200_u32 * (index as u32 + 1)).to_le_bytes());
+        bytes[section + 36..section + 40].copy_from_slice(&0x6000_0020_u32.to_le_bytes());
+    }
 
     fs::write(path, bytes).expect("minimal PE DLL fixture");
 }
