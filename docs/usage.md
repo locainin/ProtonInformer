@@ -14,14 +14,14 @@ For a flag-by-flag command reference, see [CLI Reference](cli.md).
 
 Download the Linux archive and checksum from the [latest release](https://github.com/locainin/ProtonInformer/releases/latest).
 
-For v0.1.6:
+For v0.1.7:
 
 ```bash
-curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.6/proton-informer-v0.1.6-linux-x86_64.tar.gz
-curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.6/proton-informer-v0.1.6-linux-x86_64.tar.gz.sha256
-sha256sum --check proton-informer-v0.1.6-linux-x86_64.tar.gz.sha256
-tar -xzf proton-informer-v0.1.6-linux-x86_64.tar.gz
-cd proton-informer-v0.1.6-linux-x86_64
+curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.7/proton-informer-v0.1.7-linux-x86_64.tar.gz
+curl -LO https://github.com/locainin/ProtonInformer/releases/download/v0.1.7/proton-informer-v0.1.7-linux-x86_64.tar.gz.sha256
+sha256sum --check proton-informer-v0.1.7-linux-x86_64.tar.gz.sha256
+tar -xzf proton-informer-v0.1.7-linux-x86_64.tar.gz
+cd proton-informer-v0.1.7-linux-x86_64
 ```
 
 Keep `proton-informer` beside the `helpers/` directory. The controller discovers the packaged x86 and x86_64 Windows helpers from that layout.
